@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Segoe UI Variable", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-color: #f1f5f9;
+}
