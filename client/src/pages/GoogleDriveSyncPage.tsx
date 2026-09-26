@@ -6,7 +6,6 @@ import {
   fetchGoogleAuthUrl,
   disconnectGoogleDrive,
   fetchSyncHistory,
-  triggerDatabaseRestore,
   GoogleStatus,
   SyncHistoryItem,
   SyncCommitDetail,
@@ -23,10 +22,6 @@ export default function GoogleDriveSyncPage() {
   const [connecting, setConnecting] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Restore Modal State
-  const [restoreModalOpen, setRestoreModalOpen] = useState(false);
-  const [confirmInput, setConfirmInput] = useState('');
-  const [restoring, setRestoring] = useState(false);
 
   const toggleExpand = (id: number) => {
     setExpandedCommits((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -141,33 +136,6 @@ export default function GoogleDriveSyncPage() {
     loadData();
   };
 
-  const handleConfirmRestore = async () => {
-    if (confirmInput.trim().toUpperCase() !== 'RESTORE') {
-      alert('Please type RESTORE in capital letters to confirm.');
-      return;
-    }
-
-    setRestoring(true);
-    setActionMessage(null);
-    try {
-      const res = await triggerDatabaseRestore();
-      setRestoreModalOpen(false);
-      setConfirmInput('');
-      setActionMessage({
-        type: 'success',
-        text: `Data successfully restored from Google Drive! Automatic backup created: ${res.backupFile}`,
-      });
-      await loadData();
-      await refreshStatus();
-    } catch (err: any) {
-      setActionMessage({
-        type: 'error',
-        text: err.response?.data?.message || err.message || 'Database restore failed.',
-      });
-    } finally {
-      setRestoring(false);
-    }
-  };
 
   const isConnected = Boolean(googleStatus?.connected);
   const isConfigured = Boolean(googleStatus?.configured);
@@ -185,7 +153,7 @@ export default function GoogleDriveSyncPage() {
             Google Drive Backup & Synchronization
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Offline-first incremental backup ensuring local SQLite database, uploads folder, and full revision logs are mirrored to Google Drive.
+            Offline-first backup ensuring local SQLite database (college.db) and uploads folder are mirrored to Google Drive.
           </p>
         </div>
 
@@ -388,9 +356,6 @@ export default function GoogleDriveSyncPage() {
               <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
                 <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wide">Tracked Sync Targets</span>
                 <div className="mt-1 flex flex-wrap gap-1">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-3xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                    Tables JSON
-                  </span>
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-3xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     uploads/
                   </span>
@@ -428,7 +393,7 @@ export default function GoogleDriveSyncPage() {
 
           <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-slate-500">
-              Incremental git-style tracking: only new/modified records and files are uploaded, accompanied by full SQLite snapshots.
+              Syncs the college.db SQLite database file and uploads folder to Google Drive.
             </p>
             <button
               type="button"
@@ -460,36 +425,6 @@ export default function GoogleDriveSyncPage() {
         </div>
       </div>
 
-      {/* Card 3: Disaster Recovery / Restore from Google Drive */}
-      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-bold text-amber-900 flex items-center gap-2">
-              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Disaster Recovery & Database Restore
-            </h2>
-            <p className="text-xs text-amber-800 mt-1 max-w-2xl leading-relaxed">
-              If your computer was damaged, replaced, or data was deleted, you can restore your database from Google Drive.
-              An automatic local backup (<code className="bg-white/70 px-1 py-0.5 rounded text-2xs">college_backup_&lt;timestamp&gt;.db</code>) will be created prior to restoring.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setRestoreModalOpen(true)}
-            disabled={!isConnected || syncing}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-xs font-semibold transition shadow-2xs whitespace-nowrap ${
-              !isConnected || syncing
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                : 'border border-amber-400 bg-white text-amber-900 hover:bg-amber-100'
-            }`}
-          >
-            Restore from Google Drive
-          </button>
-        </div>
-      </div>
 
       {/* Card 4: GitHub-like Revision Timeline & Change History */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
@@ -807,72 +742,7 @@ export default function GoogleDriveSyncPage() {
         )}
       </div>
 
-      {/* Restore Confirmation Modal */}
-      {restoreModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Confirm Database Restore</h3>
-                <p className="text-xs text-slate-500">Restore from Google Drive</p>
-              </div>
-            </div>
 
-            <div className="mt-4 space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p>
-                This operation will download all synchronized tables from Google Drive and merge them into the local SQLite database.
-              </p>
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-                <span className="font-semibold text-slate-700">Safety Guarantee:</span>
-                <p className="text-2xs text-slate-500 mt-0.5">
-                  An automatic backup file will be created locally in your server directory before any change is written.
-                </p>
-              </div>
-              <p className="font-medium text-slate-800">
-                To confirm, type <span className="font-bold text-red-600 font-mono">RESTORE</span> in the box below:
-              </p>
-              <input
-                type="text"
-                value={confirmInput}
-                onChange={(e) => setConfirmInput(e.target.value)}
-                placeholder="Type RESTORE to confirm"
-                className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setRestoreModalOpen(false);
-                  setConfirmInput('');
-                }}
-                disabled={restoring}
-                className="px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-md transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmRestore}
-                disabled={confirmInput.trim().toUpperCase() !== 'RESTORE' || restoring}
-                className={`px-4 py-2 text-xs font-semibold text-white rounded-md transition shadow-xs ${
-                  confirmInput.trim().toUpperCase() !== 'RESTORE' || restoring
-                    ? 'bg-slate-300 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                }`}
-              >
-                {restoring ? 'Restoring Data...' : 'Yes, Restore Now'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

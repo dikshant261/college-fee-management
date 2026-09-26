@@ -258,7 +258,7 @@ export default function StudentListPage() {
                       <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-900 font-semibold font-mono text-xs">{student.college_roll_no}</td>
                       <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-800 font-medium text-xs">{student.name}</td>
                       <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-700 text-xs">{student.course_name || student.course_code}</td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-700 text-xs">Unit {student.current_duration_unit}</td>
+                      <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-700 text-xs">Year {student.current_duration_unit}</td>
                       <td className="px-4 py-2 align-middle border-b border-slate-100 font-semibold text-slate-900 text-xs">
                         ₹{Number(student.total_fees_due || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>

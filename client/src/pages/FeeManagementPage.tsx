@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { createFeePayment, deleteFeePayment, fetchFeePayments, FeePaymentRecord } from '../lib/feeApi';
 import { fetchStudentById, fetchStudentByRoll, Student } from '../lib/studentApi';
 import Toast from '../components/Toast';
 import Pagination from '../components/Pagination';
 
 export default function FeeManagementPage() {
+  const { user } = useAuth();
   const [payments, setPayments] = useState<FeePaymentRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -106,12 +108,14 @@ export default function FeeManagementPage() {
             <h1 className="text-xl font-bold text-slate-900">Fee Entry &amp; Transactions</h1>
             <p className="text-xs text-slate-500">Record student payments, track transaction history, and balance dues.</p>
           </div>
-          <Link
-            to="/fee-structures"
-            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-xs transition"
-          >
-            Configure Fee Structures
-          </Link>
+          {user?.role === 'admin' && (
+            <Link
+              to="/fee-structures"
+              className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-xs transition"
+            >
+              Configure Fee Structures
+            </Link>
+          )}
         </div>
         <form onSubmit={handleCreate} className="mt-4 grid gap-3 lg:grid-cols-5 items-end">
           {matchedStudent && (
@@ -119,7 +123,7 @@ export default function FeeManagementPage() {
               <span className="font-semibold text-slate-800">Student: {matchedStudent.name}</span>
               <span className="font-mono text-slate-600">({matchedStudent.college_roll_no})</span>
               <span className="rounded bg-blue-100 px-1.5 py-0.5 font-medium text-blue-700">{matchedStudent.course_name || matchedStudent.course_code}</span>
-              <span className="text-slate-600">Year / Unit: <strong className="text-slate-900">{matchedStudent.current_duration_unit}</strong> ({matchedStudent.academic_year})</span>
+              <span className="text-slate-600">Year: <strong className="text-slate-900">{matchedStudent.current_duration_unit}</strong> ({matchedStudent.academic_year})</span>
               <span className="text-slate-600">Current Year Due: <strong className="text-slate-900">₹{Number(matchedStudent.total_fees_due).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
               <span className="text-slate-600">Paid this Year: <strong className="text-emerald-700">₹{Number(matchedStudent.total_fees_paid).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
               <span className="text-slate-600">Current Pending: <strong className={Number(matchedStudent.pending_fees) > 0 ? "text-red-700 font-bold" : "text-emerald-700 font-bold"}>₹{Number(matchedStudent.pending_fees).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
@@ -164,7 +168,7 @@ export default function FeeManagementPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700">Course Year / Unit</label>
+            <label className="block text-xs font-medium text-slate-700">Course Year</label>
             <input
               type="number"
               min={1}
@@ -214,7 +218,7 @@ export default function FeeManagementPage() {
               <tr>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Student</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Payment For</th>
-                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Duration Unit</th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Year</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Amount</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Paid At</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Actions</th>
@@ -232,7 +236,7 @@ export default function FeeManagementPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-2 border-b border-slate-100 text-slate-700 capitalize text-xs">{payment.payment_for.replace('_', ' ')}</td>
-                    <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">Unit {payment.duration_unit}</td>
+                    <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">Year {payment.duration_unit}</td>
                     <td className="px-4 py-2 border-b border-slate-100 text-slate-700 font-semibold text-xs">₹{payment.amount.toFixed(2)}</td>
                     <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">{new Date(payment.paid_at).toLocaleDateString()}</td>
                     <td className="px-4 py-2 border-b border-slate-100">

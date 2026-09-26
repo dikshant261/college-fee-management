@@ -228,7 +228,7 @@ export default function StudentFormPage() {
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-700">Current Year / Unit</span>
+              <span className="text-xs font-medium text-slate-700">Current Year</span>
               <select
                 value={form.current_duration_unit ?? 1}
                 onChange={(e) => updateField('current_duration_unit', Number(e.target.value))}
@@ -310,7 +310,7 @@ export default function StudentFormPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-slate-200">
             <div className="text-xs text-slate-500">
-              {selectedCourse ? `${selectedCourse.name} — ${selectedCourse.duration_type} (${selectedCourse.total_duration} units)` : 'Select a course to configure year options.'}
+              {selectedCourse ? `${selectedCourse.name} — ${selectedCourse.duration_type} (${selectedCourse.total_duration} years)` : 'Select a course to configure year options.'}
             </div>
             <div className="flex items-center gap-2">
               <button

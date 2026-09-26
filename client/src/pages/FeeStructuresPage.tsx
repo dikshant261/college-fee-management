@@ -56,7 +56,7 @@ export default function FeeStructuresPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.course_code || !form.academic_year || !form.duration_unit) {
-      setToast({ message: 'Course, academic year and duration unit are required.', variant: 'error' });
+      setToast({ message: 'Course, academic year and year are required.', variant: 'error' });
       return;
     }
 
@@ -132,7 +132,7 @@ export default function FeeStructuresPage() {
       <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Fee Structure Setup</h1>
-          <p className="text-xs text-slate-500">Configure tuition and fee components per course, academic year, and unit.</p>
+          <p className="text-xs text-slate-500">Configure tuition and fee components per course, academic year, and year.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4 grid gap-3 lg:grid-cols-4">
@@ -162,7 +162,7 @@ export default function FeeStructuresPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700">Duration Unit</label>
+            <label className="block text-xs font-medium text-slate-700">Year</label>
             <input
               type="number"
               min={1}
@@ -264,7 +264,7 @@ export default function FeeStructuresPage() {
               <tr>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Course</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Academic Year</th>
-                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Unit</th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Year</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Tuition</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Exam</th>
                 <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Library</th>
@@ -280,7 +280,7 @@ export default function FeeStructuresPage() {
                 <tr key={structure.id} className="hover:bg-slate-50 transition">
                   <td className="px-4 py-2 border-b border-slate-100 text-slate-700 font-mono text-xs">{structure.course_code}</td>
                   <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">{structure.academic_year}</td>
-                  <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">Unit {structure.duration_unit}</td>
+                  <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">Year {structure.duration_unit}</td>
                   <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">₹{structure.tuition_fee.toFixed(2)}</td>
                   <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">₹{structure.exam_fee.toFixed(2)}</td>
                   <td className="px-4 py-2 border-b border-slate-100 text-slate-700 text-xs">₹{structure.library_fee.toFixed(2)}</td>

@@ -491,7 +491,7 @@ export async function syncDatabaseSnapshot(
     if (fs.existsSync(tempSnapshotPath)) {
       try {
         fs.unlinkSync(tempSnapshotPath);
-      } catch {}
+      } catch { }
     }
   }
 }
@@ -514,3 +514,64 @@ export async function recordCommitOnDrive(
     console.error('[GoogleDrive] Failed to record commit on Drive:', err);
   }
 }
+
+/**
+ * Deletes any legacy or stray .json files (e.g. students.json, sync_metadata.json) from Google Drive
+ * so only uploads folder and college.db exist.
+ */
+export async function cleanUpRemoteJsonFiles(
+  drive: drive_v3.Drive,
+  rootFolderId: string
+): Promise<number> {
+  let deletedCount = 0;
+  try {
+    const listRes = await drive.files.list({
+      q: `'${rootFolderId}' in parents and trashed = false`,
+      fields: 'files(id, name, mimeType)',
+      spaces: 'drive',
+    });
+
+    const files = listRes.data.files || [];
+    for (const file of files) {
+      if (file.id && file.name && (file.name.endsWith('.json') || file.mimeType === 'application/json')) {
+        try {
+          await drive.files.delete({ fileId: file.id });
+          deletedCount++;
+          console.log(`[GoogleDrive] Cleaned up remote JSON file: ${file.name} (${file.id})`);
+        } catch (delErr: any) {
+          console.warn(`[GoogleDrive] Failed to delete remote JSON file ${file.name}:`, delErr?.message);
+        }
+      }
+    }
+
+    // Also clean up local sync_drive_files cache for any json files
+    const db = getDB();
+    await db.run(`DELETE FROM sync_drive_files WHERE table_name LIKE '%.json'`);
+  } catch (err) {
+    console.error('[GoogleDrive] Error cleaning up remote JSON files:', err);
+  }
+  return deletedCount;
+}
+
+/**
+ * Downloads a remote binary file from Google Drive to a local file path
+ */
+export async function downloadRemoteFile(
+  drive: drive_v3.Drive,
+  fileId: string,
+  destinationPath: string
+): Promise<void> {
+  const destStream = fs.createWriteStream(destinationPath);
+  const res = await drive.files.get(
+    { fileId, alt: 'media' },
+    { responseType: 'stream' }
+  );
+
+  return new Promise((resolve, reject) => {
+    (res.data as any)
+      .pipe(destStream)
+      .on('finish', () => resolve())
+      .on('error', (err: any) => reject(err));
+  });
+}
+

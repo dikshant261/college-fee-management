@@ -29,6 +29,7 @@ export default function SystemSettingsPage() {
     try {
       const updated = await updateSettings(settings);
       setSettings(updated);
+      window.dispatchEvent(new CustomEvent('settings:updated', { detail: updated }));
       setToast({ message: 'Settings saved successfully.', variant: 'success' });
     } catch (error) {
       setToast({ message: 'Unable to save settings.', variant: 'error' });

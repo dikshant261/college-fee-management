@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchSettings } from '../lib/settingsApi';
 import HeaderSyncBadge from './HeaderSyncBadge';
 
 const navItems = [
@@ -22,7 +23,31 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [collegeName, setCollegeName] = useState<string>('');
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Load dynamic college name from database
+  useEffect(() => {
+    async function loadCollegeName() {
+      try {
+        const data = await fetchSettings();
+        if (data.college_name) {
+          setCollegeName(data.college_name);
+        }
+      } catch (err) {
+        // ignore errors
+      }
+    }
+    loadCollegeName();
+
+    function handleSettingsUpdate(e: any) {
+      if (e?.detail?.college_name) {
+        setCollegeName(e.detail.college_name);
+      }
+    }
+    window.addEventListener('settings:updated', handleSettingsUpdate);
+    return () => window.removeEventListener('settings:updated', handleSettingsUpdate);
+  }, []);
 
   // Close popup menu when clicking outside
   useEffect(() => {
@@ -212,9 +237,15 @@ export default function MainLayout() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+              <div className="text-sm font-semibold text-slate-800 flex items-center gap-2 flex-wrap">
                 <span className="inline-block h-2 w-2 rounded-full bg-blue-600"></span>
-                College Management System
+                <span>College Management System</span>
+                {collegeName ? (
+                  <>
+                    <span className="text-slate-300 font-normal">|</span>
+                    <span className="text-blue-700 font-semibold">{collegeName}</span>
+                  </>
+                ) : null}
               </div>
               <span className="hidden sm:inline-block text-xs text-slate-300 font-normal">|</span>
               <div className="hidden sm:block text-xs font-medium text-slate-500">

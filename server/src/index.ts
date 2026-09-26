@@ -47,7 +47,7 @@ app.use('/api/fees', authorize, feesRouter);
 app.use('/api/fee-structures', authorize, requireAdmin, feeStructuresRouter);
 app.use('/api/users', authorize, requireAdmin, usersRouter);
 app.use('/api/courses', authorize, requireAdmin, coursesRouter);
-app.use('/api/settings', authorize, requireAdmin, settingsRouter);
+app.use('/api/settings', authorize, settingsRouter);
 app.use('/api/google', googleRouter);
 app.use('/api/sync', syncRouter);
 

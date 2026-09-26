@@ -17,7 +17,7 @@ router.get('/', async (_req, res) => {
 router.post('/', async (req, res) => {
   const { course_code, academic_year, duration_unit, tuition_fee, exam_fee, library_fee, other_fee } = req.body;
   if (!course_code || !academic_year || !duration_unit) {
-    return res.status(400).json({ error: 'Course, academic year and duration unit are required' });
+    return res.status(400).json({ error: 'Course, academic year and year are required' });
   }
   const structure = await createFeeStructure({
     course_code,

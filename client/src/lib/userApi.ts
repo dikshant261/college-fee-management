@@ -19,7 +19,16 @@ export function createUser(payload: { name: string; email: string; role: 'admin'
   return api.post<UserRecord>('/api/users', payload).then((response) => response.data);
 }
 
-export function updateUser(id: number, payload: Partial<{ name: string; email: string; role: 'admin' | 'staff'; force_password_reset: number }>) {
+export function updateUser(
+  id: number,
+  payload: Partial<{
+    name: string;
+    email: string;
+    role: 'admin' | 'staff';
+    force_password_reset: number;
+    password?: string;
+  }>
+) {
   return api.put<UserRecord>(`/api/users/${id}`, payload).then((response) => response.data);
 }
 

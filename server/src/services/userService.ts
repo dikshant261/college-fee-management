@@ -49,7 +49,16 @@ export async function createUser(input: { name: string; email: string; role: 'ad
   return getUserById(result.lastID!);
 }
 
-export async function updateUser(id: number, input: Partial<{ name: string; email: string; role: 'admin' | 'staff'; force_password_reset: number }>) {
+export async function updateUser(
+  id: number,
+  input: Partial<{
+    name: string;
+    email: string;
+    role: 'admin' | 'staff';
+    force_password_reset: number;
+    password?: string;
+  }>
+) {
   const db = getDB();
   const existing = await getUserById(id);
   if (!existing) return null;
@@ -57,14 +66,28 @@ export async function updateUser(id: number, input: Partial<{ name: string; emai
   const updatedEmail = input.email ?? existing.email;
   const updatedRole = input.role ?? existing.role;
   const updatedReset = typeof input.force_password_reset === 'number' ? input.force_password_reset : existing.force_password_reset;
-  await db.run(
-    `UPDATE users SET name = ?, email = ?, role = ?, force_password_reset = ?, updated_at = datetime('now') WHERE id = ?`,
-    updatedName,
-    updatedEmail,
-    updatedRole,
-    updatedReset,
-    id
-  );
+
+  if (input.password && input.password.trim()) {
+    const passwordHash = await hashPassword(input.password.trim());
+    await db.run(
+      `UPDATE users SET name = ?, email = ?, role = ?, force_password_reset = ?, password = ?, updated_at = datetime('now') WHERE id = ?`,
+      updatedName,
+      updatedEmail,
+      updatedRole,
+      updatedReset,
+      passwordHash,
+      id
+    );
+  } else {
+    await db.run(
+      `UPDATE users SET name = ?, email = ?, role = ?, force_password_reset = ?, updated_at = datetime('now') WHERE id = ?`,
+      updatedName,
+      updatedEmail,
+      updatedRole,
+      updatedReset,
+      id
+    );
+  }
   return getUserById(id);
 }
 

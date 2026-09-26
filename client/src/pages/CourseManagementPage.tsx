@@ -106,7 +106,7 @@ export default function CourseManagementPage() {
             </h1>
             <p className="text-xs text-slate-500">
               {editingCode
-                ? 'Update course code, title, duration type, and total duration units below.'
+                ? 'Update course code, title, duration type, and total duration (years) below.'
                 : 'Configure academic courses, degree types, and duration settings.'}
             </p>
           </div>
@@ -154,7 +154,7 @@ export default function CourseManagementPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700">Total Duration (Units)</label>
+            <label className="block text-xs font-medium text-slate-700">Total Duration (Years)</label>
             <input
               type="number"
               min={1}
