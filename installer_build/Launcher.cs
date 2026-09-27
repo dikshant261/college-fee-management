@@ -66,6 +66,23 @@ namespace CollegeFeeManagement
                 psi.CreateNoWindow = true;
                 psi.UseShellExecute = false;
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
+
+                // Explicitly inject environment variables for reliable zero-configuration launch
+                psi.EnvironmentVariables["NODE_ENV"] = "production";
+                psi.EnvironmentVariables["HOST"] = "0.0.0.0";
+                psi.EnvironmentVariables["PORT"] = port.ToString();
+
+                string dbPath = Environment.GetEnvironmentVariable("DATABASE_PATH");
+                if (string.IsNullOrEmpty(dbPath))
+                {
+                    psi.EnvironmentVariables["DATABASE_PATH"] = @"C:\CollegeData\college.db";
+                }
+                string uploadsDir = Environment.GetEnvironmentVariable("UPLOADS_DIR");
+                if (string.IsNullOrEmpty(uploadsDir))
+                {
+                    psi.EnvironmentVariables["UPLOADS_DIR"] = @"C:\CollegeData\uploads";
+                }
+
                 Process.Start(psi);
             }
             catch (Exception ex)

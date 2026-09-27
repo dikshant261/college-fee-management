@@ -1,4 +1,6 @@
 import os from 'os';
+import path from 'path';
+import fs from 'fs';
 // @ts-ignore
 import QRCode from 'qrcode';
 
@@ -16,24 +18,67 @@ export interface NetworkInfo {
   serverUrl: string;
   clientUrl: string;
   qrDataUrl: string;
+  serverQrDataUrl?: string;
+  clientQrDataUrl?: string;
   interfaces: NetworkInterfaceInfo[];
 }
 
 /**
- * Returns all active, non-internal IPv4 network interfaces on the host machine.
+ * Checks whether the compiled static React frontend dist folder is present.
+ */
+export function isStaticClientAvailable(): boolean {
+  const clientDistCandidates = [
+    process.env.CLIENT_DIST_DIR,
+    path.join(process.cwd(), 'client/dist'),
+    path.join(process.cwd(), '../client/dist'),
+    path.join(__dirname, '../../client/dist'),
+    path.join(__dirname, '../client/dist')
+  ].filter(Boolean) as string[];
+
+  return clientDistCandidates.some(
+    (distPath) => fs.existsSync(distPath) && fs.existsSync(path.join(distPath, 'index.html'))
+  );
+}
+
+/**
+ * Returns all active, non-internal, physical IPv4 network interfaces on the host machine.
+ * Filters out virtual network adapters (WSL, VirtualBox, VMware, Docker, Hyper-V, APIPA).
  */
 export function getAllNetworkIps(): NetworkInterfaceInfo[] {
   const interfaces = os.networkInterfaces();
   const results: NetworkInterfaceInfo[] = [];
 
+  const virtualKeywords = [
+    'vethernet',
+    'virtualbox',
+    'vmware',
+    'hyper-v',
+    'loopback',
+    'teredo',
+    'pseudo',
+    'bluetooth',
+    'wsl',
+    'docker'
+  ];
+
   for (const [name, addrs] of Object.entries(interfaces)) {
     if (!addrs) continue;
+    const lowerName = name.toLowerCase();
+    const isVirtual = virtualKeywords.some((keyword) => lowerName.includes(keyword));
+    if (isVirtual) continue;
+
     for (const addr of addrs) {
-      // Node 18+ uses family as 'IPv4' (string) or 4 (number)
       const isIpv4 = addr.family === 'IPv4' || (addr as any).family === 4;
       if (isIpv4 && !addr.internal) {
-        const lowerName = name.toLowerCase();
-        const isWifi = lowerName.includes('wi-fi') || lowerName.includes('wifi') || lowerName.includes('wlan') || lowerName.includes('wireless');
+        // Exclude link-local auto-assigned IPs (169.254.x.x)
+        if (addr.address.startsWith('169.254.')) continue;
+
+        const isWifi =
+          lowerName.includes('wi-fi') ||
+          lowerName.includes('wifi') ||
+          lowerName.includes('wlan') ||
+          lowerName.includes('wireless');
+
         results.push({
           name,
           ip: addr.address,
@@ -43,8 +88,34 @@ export function getAllNetworkIps(): NetworkInterfaceInfo[] {
     }
   }
 
-  // Sort so Wi-Fi / WLAN interfaces come first, then Ethernet
-  results.sort((a, b) => (b.isWifi ? 1 : 0) - (a.isWifi ? 1 : 0));
+  // Fallback to any non-internal IPv4 if everything was filtered out
+  if (results.length === 0) {
+    for (const [name, addrs] of Object.entries(interfaces)) {
+      if (!addrs) continue;
+      for (const addr of addrs) {
+        const isIpv4 = addr.family === 'IPv4' || (addr as any).family === 4;
+        if (isIpv4 && !addr.internal && !addr.address.startsWith('169.254.')) {
+          results.push({
+            name,
+            ip: addr.address,
+            isWifi: false
+          });
+        }
+      }
+    }
+  }
+
+  // Prioritize physical Wi-Fi interfaces, then private LAN subnets (192.168.x.x, 10.x.x.x)
+  results.sort((a, b) => {
+    if (a.isWifi && !b.isWifi) return -1;
+    if (!a.isWifi && b.isWifi) return 1;
+    const isPrivateA = a.ip.startsWith('192.168.') || a.ip.startsWith('10.');
+    const isPrivateB = b.ip.startsWith('192.168.') || b.ip.startsWith('10.');
+    if (isPrivateA && !isPrivateB) return -1;
+    if (!isPrivateA && isPrivateB) return 1;
+    return 0;
+  });
+
   return results;
 }
 
@@ -59,16 +130,27 @@ export function getPrimaryNetworkIp(): string {
 
 /**
  * Generates comprehensive network info including a QR Code for instant mobile access.
+ * In production / standalone mode, automatically aligns clientPort to serverPort (5000).
  */
-export async function getNetworkDetails(serverPort = 5000, clientPort = 5173): Promise<NetworkInfo> {
+export async function getNetworkDetails(serverPort = 5000, clientPortOverride?: number): Promise<NetworkInfo> {
   const primaryIp = getPrimaryNetworkIp();
   const interfaces = getAllNetworkIps();
+  const staticAvailable = isStaticClientAvailable();
+
+  // If running in production or serving compiled static React files, client is on serverPort (5000)
+  const clientPort =
+    staticAvailable || process.env.NODE_ENV === 'production'
+      ? serverPort
+      : (clientPortOverride || Number(process.env.CLIENT_PORT || 5173));
+
   const serverUrl = `http://${primaryIp}:${serverPort}`;
   const clientUrl = `http://${primaryIp}:${clientPort}`;
 
-  let qrDataUrl = '';
+  let serverQrDataUrl = '';
+  let clientQrDataUrl = '';
+
   try {
-    qrDataUrl = await QRCode.toDataURL(clientUrl, {
+    serverQrDataUrl = await QRCode.toDataURL(serverUrl, {
       width: 280,
       margin: 2,
       color: {
@@ -76,6 +158,19 @@ export async function getNetworkDetails(serverPort = 5000, clientPort = 5173): P
         light: '#ffffff'
       }
     });
+
+    if (clientPort !== serverPort) {
+      clientQrDataUrl = await QRCode.toDataURL(clientUrl, {
+        width: 280,
+        margin: 2,
+        color: {
+          dark: '#1e293b',
+          light: '#ffffff'
+        }
+      });
+    } else {
+      clientQrDataUrl = serverQrDataUrl;
+    }
   } catch (err) {
     console.error('Failed to generate network QR code', err);
   }
@@ -87,7 +182,9 @@ export async function getNetworkDetails(serverPort = 5000, clientPort = 5173): P
     clientPort,
     serverUrl,
     clientUrl,
-    qrDataUrl,
+    qrDataUrl: serverQrDataUrl || clientQrDataUrl,
+    serverQrDataUrl,
+    clientQrDataUrl,
     interfaces
   };
 }

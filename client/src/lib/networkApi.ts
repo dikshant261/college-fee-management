@@ -14,6 +14,8 @@ export interface NetworkInfo {
   serverUrl: string;
   clientUrl: string;
   qrDataUrl: string;
+  serverQrDataUrl?: string;
+  clientQrDataUrl?: string;
   interfaces: NetworkInterfaceInfo[];
 }
 

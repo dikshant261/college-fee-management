@@ -43,16 +43,20 @@ Name: "{autoprograms}\{#MyAppName}\Open Data Folder"; Filename: "explorer.exe"; 
 Name: "{autoprograms}\{#MyAppName}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-; Silently configure Windows Firewall for port 5000 so all devices on Wi-Fi connect seamlessly
+; Silently configure Windows Firewall for port 5000 and node runtime across all network profiles (Domain, Private, Public)
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""College App Server (5000)"""; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""College App Server (5000)"" dir=in action=allow protocol=TCP localport=5000 profile=any"; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""College App Node Runtime"""; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""College App Node Runtime"" dir=in action=allow program=""{app}\node.exe"" enable=yes profile=any"; Flags: runhidden
 ; Option to launch the application immediately
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName} now"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Silently stop server if running
 Filename: "{app}\StopCollegeApp.exe"; Flags: runhidden
-; Silently remove Firewall rule
+; Silently remove Firewall rules
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""College App Server (5000)"""; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""College App Node Runtime"""; Flags: runhidden
 
 [Code]
 var
@@ -102,6 +106,7 @@ begin
     ForceDirectories(QrcodesDir);
 
     // 2. Set permanent Windows System Environment Variables
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'NODE_ENV', 'production');
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'DATABASE_PATH', DBPath);
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'UPLOADS_DIR', UploadsDir);
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PORT', '5000');
