@@ -16,8 +16,10 @@ import {
   StudentInput
 } from '../services/studentService';
 
+import { getUploadsDir } from '../utils/paths';
+
 const router = Router();
-const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+const uploadsDir = getUploadsDir();
 const studentsDir = path.join(uploadsDir, 'students');
 if (!fs.existsSync(studentsDir)) fs.mkdirSync(studentsDir, { recursive: true });
 
@@ -75,24 +77,29 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const body = req.body as Partial<StudentInput>;
-  if (!body.name || !body.course_code || !body.academic_year || !body.current_duration_unit) {
-    return res.status(400).json({ error: 'Missing required student fields' });
+  try {
+    const body = req.body as Partial<StudentInput>;
+    if (!body.name || !body.course_code || !body.academic_year || !body.current_duration_unit) {
+      return res.status(400).json({ error: 'Missing required student fields' });
+    }
+
+    const student = await createStudent({
+      name: body.name,
+      course_code: body.course_code,
+      academic_year: body.academic_year,
+      current_duration_unit: Number(body.current_duration_unit),
+      class: body.class,
+      section: body.section,
+      phone: body.phone,
+      address: body.address,
+      university_roll_no: body.university_roll_no
+    });
+
+    res.status(201).json(student);
+  } catch (err: any) {
+    console.error('Error creating student:', err);
+    res.status(500).json({ error: err?.message || 'Failed to create student' });
   }
-
-  const student = await createStudent({
-    name: body.name,
-    course_code: body.course_code,
-    academic_year: body.academic_year,
-    current_duration_unit: Number(body.current_duration_unit),
-    class: body.class,
-    section: body.section,
-    phone: body.phone,
-    address: body.address,
-    university_roll_no: body.university_roll_no
-  });
-
-  res.status(201).json(student);
 });
 
 router.get('/:id', async (req, res) => {
@@ -136,8 +143,7 @@ router.post('/:id/photo', upload.single('photo'), async (req, res) => {
   if (!id) return res.status(400).json({ error: 'Invalid student id' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const relPath = path.relative(process.cwd(), req.file.path).replace(/\\/g, '/');
-  const photoPath = `/${relPath}`;
+  const photoPath = `/uploads/students/${req.file.filename}`;
   const student = await uploadStudentPhoto(id, photoPath);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   res.json(student);

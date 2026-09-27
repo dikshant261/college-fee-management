@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchSettings } from '../lib/settingsApi';
 import HeaderSyncBadge from './HeaderSyncBadge';
+import WiFiModal from './WiFiModal';
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard' },
@@ -23,6 +24,7 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [wifiModalOpen, setWifiModalOpen] = useState(false);
   const [collegeName, setCollegeName] = useState<string>('');
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -223,42 +225,65 @@ export default function MainLayout() {
           MAIN COLUMN: Header + Scrollable Outlet
           ========================================================================= */}
       <div className="flex flex-1 flex-col h-screen min-w-0 overflow-hidden">
-        {/* Top Window Titlebar Header */}
-        <header className="flex-shrink-0 border-b border-slate-200 bg-white px-4 py-2.5 shadow-xs z-10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        {/* Top Window Titlebar Header - Fully Responsive */}
+        <header className="flex-shrink-0 border-b border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 shadow-xs z-10">
+          <div className="flex items-center justify-between gap-2">
+            {/* Left section: Hamburger Button + Title */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-slate-50 text-slate-700 lg:hidden hover:bg-slate-100 transition"
+                className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-slate-300 bg-slate-50 text-slate-700 lg:hidden hover:bg-slate-100 transition shadow-2xs"
                 aria-label="Open navigation menu"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="text-sm font-semibold text-slate-800 flex items-center gap-2 flex-wrap">
-                <span className="inline-block h-2 w-2 rounded-full bg-blue-600"></span>
-                <span>College Management System</span>
-                {collegeName ? (
-                  <>
-                    <span className="text-slate-300 font-normal">|</span>
-                    <span className="text-blue-700 font-semibold">{collegeName}</span>
-                  </>
-                ) : null}
-              </div>
-              <span className="hidden sm:inline-block text-xs text-slate-300 font-normal">|</span>
-              <div className="hidden sm:block text-xs font-medium text-slate-500">
-                {user?.role === 'admin' ? 'Administrator Mode' : 'Staff Mode'}
+
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="hidden sm:inline-block h-2 w-2 rounded-full bg-blue-600 flex-shrink-0"></span>
+                <span className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+                  {collegeName || 'College Admin'}
+                </span>
+                <span className="hidden md:inline-block text-xs text-slate-300 font-normal">|</span>
+                <span className="hidden md:inline-block text-xs text-slate-500 font-medium">
+                  College Management System
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Right section: Wi-Fi, Sync Badge, Online Indicator */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Wi-Fi Connect Button */}
+              <button
+                type="button"
+                onClick={() => setWifiModalOpen(true)}
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition shadow-2xs"
+                title="Connect other devices over Wi-Fi"
+              >
+                <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
+                  />
+                </svg>
+                <span className="hidden sm:inline">Wi-Fi</span>
+              </button>
+
+              {/* Sync Badge */}
               <HeaderSyncBadge />
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                Online
-              </span>
+
+              {/* Online Indicator */}
+              <div
+                className="inline-flex items-center gap-1 px-1.5 py-1 sm:px-2 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
+                title="Server is connected and online"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                <span className="hidden sm:inline">Online</span>
+              </div>
             </div>
           </div>
         </header>
@@ -285,21 +310,21 @@ export default function MainLayout() {
           {/* Drawer content */}
           <div className="fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-2xl">
             {/* Mobile Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 flex-shrink-0">
-              <div>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 flex-shrink-0">
+              <div className="min-w-0 pr-2">
                 <Link
                   to="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-xl font-bold text-slate-900"
+                  className="text-base font-bold text-slate-900 truncate block"
                 >
-                  College Admin
+                  {collegeName || 'College Admin'}
                 </Link>
-                <p className="text-xs text-slate-500">{user?.role === 'admin' ? 'Administrator' : 'Staff'}</p>
+                <p className="text-xs text-slate-500 capitalize">{user?.role === 'admin' ? 'Administrator' : 'Staff'}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100"
+                className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100"
                 aria-label="Close navigation"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,8 +334,29 @@ export default function MainLayout() {
             </div>
 
             {/* Mobile Scrollable Navigation */}
-            <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 px-4 py-4">
+            <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 px-4 py-4 space-y-3">
               {renderNavLinks(() => setMobileMenuOpen(false))}
+
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setWifiModalOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition shadow-2xs"
+                >
+                  <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
+                    />
+                  </svg>
+                  <span>Wi-Fi Network & QR Code</span>
+                </button>
+              </div>
             </div>
 
             {/* Mobile Bottom Administrator section with Logout */}
@@ -346,6 +392,9 @@ export default function MainLayout() {
           </div>
         </div>
       )}
+
+      {/* Wi-Fi Local Network Modal */}
+      <WiFiModal isOpen={wifiModalOpen} onClose={() => setWifiModalOpen(false)} />
     </div>
   );
 }

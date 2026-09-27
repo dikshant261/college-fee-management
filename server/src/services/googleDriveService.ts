@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDB } from '../db';
 import { saveDriveFolderInfo } from './googleAuthService';
+import { getUploadsDir } from '../utils/paths';
 
 const DEFAULT_FOLDER_NAME = process.env.GOOGLE_DRIVE_FOLDER_NAME || 'College Management System Backup';
 
@@ -308,7 +309,7 @@ export async function syncUploadsFolder(
   deleted: number;
   files: UploadFileAction[];
 }> {
-  const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+  const uploadsDir = getUploadsDir();
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }

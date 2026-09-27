@@ -3,8 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
+import { getDatabasePath } from './utils/paths';
 
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'college.db');
+const dbPath = getDatabasePath();
 const dir = path.dirname(dbPath);
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -14,14 +15,27 @@ async function hasTable(db: Database<sqlite3.Database, sqlite3.Statement>, table
 }
 
 async function hasColumn(db: Database<sqlite3.Database, sqlite3.Statement>, table: string, column: string) {
-  const rows = await db.all<{ name: string }[]>(`PRAGMA table_info(${table})`);
-  return rows.some((row) => row.name === column);
+  try {
+    const rows = await db.all<Array<{ name: string }>>(`PRAGMA table_xinfo(${table})`);
+    if (Array.isArray(rows) && rows.length > 0) {
+      return rows.some((row: { name: string }) => row.name.toLowerCase() === column.toLowerCase());
+    }
+  } catch {}
+  const rows = await db.all<Array<{ name: string }>>(`PRAGMA table_info(${table})`);
+  return Array.isArray(rows) && rows.some((row: { name: string }) => row.name.toLowerCase() === column.toLowerCase());
 }
 
 async function addColumnIfMissing(db: Database<sqlite3.Database, sqlite3.Statement>, table: string, columnDefinition: string) {
-  const columnName = columnDefinition.trim().split(' ')[0];
-  if (!(await hasColumn(db, table, columnName))) {
-    await db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDefinition}`);
+  try {
+    const columnName = columnDefinition.trim().split(' ')[0];
+    if (!(await hasColumn(db, table, columnName))) {
+      await db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDefinition}`);
+    }
+  } catch (err: any) {
+    if (err?.message?.includes('duplicate column name')) {
+      return;
+    }
+    throw err;
   }
 }
 
@@ -521,6 +535,13 @@ export async function initDB() {
     defaultEmail,
     passwordHash
   );
+
+  // Self-heal any photo_path stored with relative path traversal
+  await db.exec(`
+    UPDATE students
+    SET photo_path = '/uploads/students/' || substr(photo_path, instr(photo_path, 'students/') + 9)
+    WHERE photo_path LIKE '%students/%' AND photo_path NOT LIKE '/uploads/students/%';
+  `);
 
   return db;
 }

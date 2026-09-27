@@ -68,12 +68,12 @@ export default function Pagination({
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-1">
         <button
           type="button"
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
-          className="rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 transition"
+          className="hidden sm:inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 transition"
           title="First page"
         >
           ««
@@ -114,7 +114,7 @@ export default function Pagination({
           type="button"
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage >= totalPages || totalItems === 0}
-          className="rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 transition"
+          className="hidden sm:inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 transition"
           title="Last page"
         >
           »»

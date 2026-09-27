@@ -5,6 +5,8 @@ import sqlite3 from 'sqlite3';
 import QRCode from 'qrcode';
 import { Database } from 'sqlite';
 import { getDB } from '../db';
+import { getPrimaryNetworkIp } from '../utils/network';
+import { getUploadsDir } from '../utils/paths';
 
 export interface StudentInput {
   name: string;
@@ -41,11 +43,15 @@ export interface CourseRecord {
   total_duration: number;
 }
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-function getUploadsDir() {
-  return process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+function getFrontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('localhost') && !process.env.FRONTEND_URL.includes('127.0.0.1')) {
+    return process.env.FRONTEND_URL;
+  }
+  const primaryIp = getPrimaryNetworkIp();
+  const clientPort = process.env.CLIENT_PORT || '5173';
+  return `http://${primaryIp}:${clientPort}`;
 }
+
 
 function getAcademicYearCode(academicYear: string) {
   const cleaned = academicYear.trim();
@@ -170,7 +176,7 @@ export async function getStudentById(id: number) {
   return db.get<StudentRecord & { course_name?: string }>(
     `SELECT s.*, 
             c.name AS course_name,
-            COALESCE(fs.total_fee, s.total_fees_due, 0) AS total_fees_due,
+            COALESCE(s.total_fees_due, 0) AS total_fees_due,
             COALESCE(
               (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit = s.current_duration_unit),
               s.total_fees_paid,
@@ -178,7 +184,7 @@ export async function getStudentById(id: number) {
             ) AS total_fees_paid,
             MAX(
               0, 
-              COALESCE(fs.total_fee, s.total_fees_due, 0) - COALESCE(
+              COALESCE(s.total_fees_due, 0) - COALESCE(
                 (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit = s.current_duration_unit),
                 s.total_fees_paid,
                 0
@@ -188,9 +194,6 @@ export async function getStudentById(id: number) {
             COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid
       FROM students s
       LEFT JOIN courses c ON s.course_code = c.code
-      LEFT JOIN fee_structures fs ON fs.course_code = s.course_code 
-                                 AND fs.academic_year = s.academic_year 
-                                 AND fs.duration_unit = s.current_duration_unit
       WHERE s.id = ? AND s.deleted_at IS NULL`,
     id
   );
@@ -201,7 +204,7 @@ export async function getStudentByRollNo(rollNo: string) {
   return db.get<StudentRecord & { course_name?: string }>(
     `SELECT s.*, 
             c.name AS course_name,
-            COALESCE(fs.total_fee, s.total_fees_due, 0) AS total_fees_due,
+            COALESCE(s.total_fees_due, 0) AS total_fees_due,
             COALESCE(
               (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit = s.current_duration_unit),
               s.total_fees_paid,
@@ -209,7 +212,7 @@ export async function getStudentByRollNo(rollNo: string) {
             ) AS total_fees_paid,
             MAX(
               0, 
-              COALESCE(fs.total_fee, s.total_fees_due, 0) - COALESCE(
+              COALESCE(s.total_fees_due, 0) - COALESCE(
                 (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit = s.current_duration_unit),
                 s.total_fees_paid,
                 0
@@ -219,9 +222,6 @@ export async function getStudentByRollNo(rollNo: string) {
             COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid
       FROM students s
       LEFT JOIN courses c ON s.course_code = c.code
-      LEFT JOIN fee_structures fs ON fs.course_code = s.course_code 
-                                 AND fs.academic_year = s.academic_year 
-                                 AND fs.duration_unit = s.current_duration_unit
       WHERE s.college_roll_no = ? AND s.deleted_at IS NULL`,
     rollNo
   );
@@ -314,7 +314,7 @@ export async function getStudents(filters: {
         s.created_at,
         s.updated_at,
         c.name AS course_name,
-        COALESCE(fs.total_fee, s.total_fees_due, 0) AS total_fees_due,
+        COALESCE(s.total_fees_due, 0) AS total_fees_due,
         COALESCE(
           (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit = s.current_duration_unit),
           s.total_fees_paid,
@@ -322,7 +322,7 @@ export async function getStudents(filters: {
         ) AS total_fees_paid,
         MAX(
           0, 
-          COALESCE(fs.total_fee, s.total_fees_due, 0) - COALESCE(
+          COALESCE(s.total_fees_due, 0) - COALESCE(
             (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit = s.current_duration_unit),
             s.total_fees_paid,
             0
@@ -330,9 +330,6 @@ export async function getStudents(filters: {
         ) AS pending_fees
       FROM students s
       LEFT JOIN courses c ON s.course_code = c.code
-      LEFT JOIN fee_structures fs ON fs.course_code = s.course_code 
-                                 AND fs.academic_year = s.academic_year 
-                                 AND fs.duration_unit = s.current_duration_unit
       WHERE ${conditions.join(' AND ')}
     ) t
   `;
@@ -380,7 +377,7 @@ export async function syncStudentFees(studentId: number) {
       s.course_code, s.current_duration_unit
     );
   }
-  const currentUnitDue = fsCurrent ? Number(fsCurrent.total_fee) : Number(s.total_fees_due || 0);
+  const currentUnitDue = fsCurrent ? Number(fsCurrent.total_fee) : 0;
 
   // 2. Payments for current unit and overall
   const payments = await db.all<{ duration_unit: number; total: number }[]>(
@@ -421,14 +418,12 @@ export async function syncStudentFees(studentId: number) {
     `UPDATE students SET
       total_fees_due = ?,
       total_fees_paid = ?,
-      pending_fees = ?,
       overall_total_due = ?,
       overall_total_paid = ?,
       updated_at = datetime('now')
     WHERE id = ?`,
     currentUnitDue,
     currentUnitPaid,
-    pendingFees,
     overallDue,
     overallPaid,
     studentId
@@ -535,7 +530,8 @@ async function generateStudentQrCode(studentId: number, collegeRollNo: string) {
 
   const fileName = `${collegeRollNo}-${studentId}.png`;
   const filePath = path.join(qrcodeDir, fileName);
-  const url = `${FRONTEND_URL}/student/${collegeRollNo}`;
+  const frontendBase = getFrontendBaseUrl();
+  const url = `${frontendBase}/student/${collegeRollNo}`;
   await QRCode.toFile(filePath, url, { type: 'png', width: 280, margin: 1 });
   return `/uploads/qrcodes/${fileName}`;
 }

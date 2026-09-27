@@ -30,6 +30,10 @@ build/
 out/
 server/dist/
 client/dist/
+installer_output/
+installer_build/staging/
+installer_build/*.exe
+installer_build/*.pdb
 
 # Logs
 logs/
