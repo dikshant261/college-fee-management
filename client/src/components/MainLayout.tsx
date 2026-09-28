@@ -141,7 +141,16 @@ export default function MainLayout() {
         {/* Top Branding Section (Fixed at top) */}
         <div className="flex-shrink-0 border-b border-slate-200 px-5 py-4 bg-slate-50/50">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-white font-bold text-sm shadow-xs">
+            <img
+              src="/clg-icon.png"
+              alt="College Icon"
+              className="h-9 w-9 rounded-lg object-contain bg-white p-0.5 border border-slate-200 shadow-xs flex-shrink-0"
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-white font-bold text-sm shadow-xs flex-shrink-0">
               CA
             </div>
             <div>
@@ -311,15 +320,22 @@ export default function MainLayout() {
           <div className="fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-2xl">
             {/* Mobile Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 flex-shrink-0">
-              <div className="min-w-0 pr-2">
-                <Link
-                  to="/dashboard"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="text-base font-bold text-slate-900 truncate block"
-                >
-                  {collegeName || 'College Admin'}
-                </Link>
-                <p className="text-xs text-slate-500 capitalize">{user?.role === 'admin' ? 'Administrator' : 'Staff'}</p>
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <img
+                  src="/clg-icon.png"
+                  alt="College Icon"
+                  className="h-8 w-8 rounded-md object-contain bg-white p-0.5 border border-slate-200 shadow-xs flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-base font-bold text-slate-900 truncate block"
+                  >
+                    {collegeName || 'College Admin'}
+                  </Link>
+                  <p className="text-xs text-slate-500 capitalize">{user?.role === 'admin' ? 'Administrator' : 'Staff'}</p>
+                </div>
               </div>
               <button
                 type="button"

@@ -34,6 +34,11 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-7 shadow-lg">
         {/* Only Log In and College Management System */}
         <div className="text-center">
+          <img
+            src="/clg-icon.png"
+            alt="College Logo"
+            className="mx-auto h-16 w-16 object-contain mb-3 rounded-xl border border-slate-100 shadow-xs p-1 bg-white"
+          />
           <h1 className="text-2xl font-bold text-slate-900">Log In</h1>
           <p className="mt-1 text-sm font-medium text-slate-500">College Management System</p>
         </div>

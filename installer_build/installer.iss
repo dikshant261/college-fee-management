@@ -18,6 +18,8 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=d:\clg-app\installer_output
 OutputBaseFilename=CollegeFeeManagement-Setup
+SetupIconFile=d:\clg-app\assets\app.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -34,13 +36,14 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "d:\clg-app\installer_build\staging\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "d:\clg-app\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autoprograms}\{#MyAppName}\Stop {#MyAppName}"; Filename: "{app}\StopCollegeApp.exe"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\app.ico"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\app.ico"
+Name: "{autoprograms}\{#MyAppName}\Stop {#MyAppName}"; Filename: "{app}\StopCollegeApp.exe"; IconFilename: "{app}\assets\app.ico"
 Name: "{autoprograms}\{#MyAppName}\Open Data Folder"; Filename: "explorer.exe"; Parameters: """{code:GetDataDir}"""
-Name: "{autoprograms}\{#MyAppName}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{autoprograms}\{#MyAppName}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"; IconFilename: "{app}\assets\app.ico"
 
 [Run]
 ; Silently configure Windows Firewall for port 5000 and node runtime across all network profiles (Domain, Private, Public)
