@@ -12,7 +12,13 @@ export default function FeeManagementPage() {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [form, setForm] = useState({ student_id: '', payment_for: 'current_year' as 'current_year' | 'previous_due' | 'advance' | 'other', duration_unit: 1, amount: 0, note: '' });
+  const [form, setForm] = useState({
+    student_id: '',
+    payment_for: 'current_year' as 'current_year' | 'previous_due' | 'advance' | 'other',
+    duration_unit: 1 as number | string,
+    amount: '' as number | string,
+    note: ''
+  });
   const [matchedStudent, setMatchedStudent] = useState<Student | null>(null);
   const [toast, setToast] = useState<{ message: string; variant?: 'success' | 'error' | 'info' } | null>(null);
 
@@ -62,8 +68,9 @@ export default function FeeManagementPage() {
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.student_id.trim() || !form.amount) {
-      setToast({ message: 'Student Roll No/ID and amount are required.', variant: 'error' });
+    const numAmount = Number(form.amount);
+    if (!form.student_id.trim() || !form.amount || isNaN(numAmount) || numAmount <= 0) {
+      setToast({ message: 'Student Roll No/ID and a valid amount are required.', variant: 'error' });
       return;
     }
     setLoading(true);
@@ -71,12 +78,12 @@ export default function FeeManagementPage() {
       await createFeePayment({
         student_id: form.student_id.trim(),
         payment_for: form.payment_for,
-        duration_unit: form.duration_unit,
-        amount: form.amount,
+        duration_unit: Number(form.duration_unit) || 1,
+        amount: numAmount,
         note: form.note || undefined
       });
       setToast({ message: 'Payment recorded successfully.', variant: 'success' });
-      setForm({ student_id: '', payment_for: 'current_year', duration_unit: 1, amount: 0, note: '' });
+      setForm({ student_id: '', payment_for: 'current_year', duration_unit: 1, amount: '', note: '' });
       setMatchedStudent(null);
       await loadPayments();
     } catch (error: any) {
@@ -172,8 +179,16 @@ export default function FeeManagementPage() {
             <input
               type="number"
               min={1}
-              value={form.duration_unit}
-              onChange={(e) => setForm({ ...form, duration_unit: Number(e.target.value) })}
+              value={form.duration_unit === 0 || form.duration_unit === '0' ? '' : form.duration_unit}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, duration_unit: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, duration_unit: cleaned }));
+              }}
               placeholder="e.g. 1"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />
@@ -185,8 +200,16 @@ export default function FeeManagementPage() {
               type="number"
               min={0}
               step={0.01}
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+              value={form.amount === 0 || form.amount === '0' ? '' : form.amount}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, amount: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, amount: cleaned }));
+              }}
               placeholder="0.00"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />

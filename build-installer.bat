@@ -55,6 +55,9 @@ copy /y "%~dp0assets\clg-icon.png" "%~dp0installer_build\staging\assets\clg-icon
 copy /y "%~dp0assets\app.ico" "%~dp0installer_build\staging\assets\app.ico" >nul
 robocopy "%~dp0client\dist" "%~dp0installer_build\staging\client\dist" /E /MIR >nul 2>&1
 robocopy "%~dp0server\dist" "%~dp0installer_build\staging\server\dist" /E /MIR >nul 2>&1
+if exist "%~dp0server\.env" (
+    copy /y "%~dp0server\.env" "%~dp0installer_build\staging\server\.env" >nul
+)
 
 :: 5. Compile Installer with Inno Setup
 echo.

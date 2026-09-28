@@ -6,7 +6,7 @@ import Pagination from '../components/Pagination';
 export default function CourseManagementPage() {
   const [courses, setCourses] = useState<CourseRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ code: '', name: '', duration_type: 'year' as 'year' | 'semester', total_duration: 4 });
+  const [form, setForm] = useState({ code: '', name: '', duration_type: 'year' as 'year' | 'semester', total_duration: 4 as number | string });
   const [toast, setToast] = useState<{ message: string; variant?: 'success' | 'error' | 'info' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -59,13 +59,17 @@ export default function CourseManagementPage() {
     }
     setLoading(true);
     try {
+      const payload = {
+        ...form,
+        total_duration: Number(form.total_duration) || 1
+      };
       if (editingCode) {
-        await updateCourse(editingCode, form);
+        await updateCourse(editingCode, payload);
         setToast({ message: 'Course updated successfully.', variant: 'success' });
         handleCancelEdit();
         await loadCourses();
       } else {
-        await createCourse(form);
+        await createCourse(payload);
         setToast({ message: 'Course created successfully.', variant: 'success' });
         setForm({ code: '', name: '', duration_type: 'year', total_duration: 4 });
         await loadCourses();
@@ -158,8 +162,16 @@ export default function CourseManagementPage() {
             <input
               type="number"
               min={1}
-              value={form.total_duration}
-              onChange={(e) => setForm({ ...form, total_duration: Number(e.target.value) })}
+              value={form.total_duration === 0 || form.total_duration === '0' ? '' : form.total_duration}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, total_duration: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, total_duration: cleaned }));
+              }}
               placeholder="e.g. 3 or 4"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />

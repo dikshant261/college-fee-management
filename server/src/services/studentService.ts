@@ -5,7 +5,7 @@ import sqlite3 from 'sqlite3';
 import QRCode from 'qrcode';
 import { Database } from 'sqlite';
 import { getDB } from '../db';
-import { getPrimaryNetworkIp } from '../utils/network';
+import { getPrimaryNetworkIp, isStaticClientAvailable } from '../utils/network';
 import { getUploadsDir } from '../utils/paths';
 
 export interface StudentInput {
@@ -48,7 +48,11 @@ function getFrontendBaseUrl(): string {
     return process.env.FRONTEND_URL;
   }
   const primaryIp = getPrimaryNetworkIp();
-  const clientPort = process.env.CLIENT_PORT || '5173';
+  const staticAvailable = isStaticClientAvailable();
+  const clientPort =
+    staticAvailable || process.env.NODE_ENV === 'production'
+      ? (process.env.PORT || '5000')
+      : (process.env.CLIENT_PORT || '5173');
   return `http://${primaryIp}:${clientPort}`;
 }
 

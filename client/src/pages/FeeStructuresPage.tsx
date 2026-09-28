@@ -13,11 +13,11 @@ import Pagination from '../components/Pagination';
 const initialForm = {
   course_code: '',
   academic_year: '',
-  duration_unit: 1,
-  tuition_fee: 0,
-  exam_fee: 0,
-  library_fee: 0,
-  other_fee: 0
+  duration_unit: 1 as number | string,
+  tuition_fee: '' as number | string,
+  exam_fee: '' as number | string,
+  library_fee: '' as number | string,
+  other_fee: '' as number | string
 };
 
 export default function FeeStructuresPage() {
@@ -62,27 +62,20 @@ export default function FeeStructuresPage() {
 
     setLoading(true);
     try {
+      const payload = {
+        course_code: form.course_code,
+        academic_year: form.academic_year,
+        duration_unit: Number(form.duration_unit) || 1,
+        tuition_fee: Number(form.tuition_fee) || 0,
+        exam_fee: Number(form.exam_fee) || 0,
+        library_fee: Number(form.library_fee) || 0,
+        other_fee: Number(form.other_fee) || 0
+      };
       if (editingId) {
-        await updateFeeStructure(editingId, {
-          course_code: form.course_code,
-          academic_year: form.academic_year,
-          duration_unit: form.duration_unit,
-          tuition_fee: form.tuition_fee,
-          exam_fee: form.exam_fee,
-          library_fee: form.library_fee,
-          other_fee: form.other_fee
-        });
+        await updateFeeStructure(editingId, payload);
         setToast({ message: 'Fee structure updated.', variant: 'success' });
       } else {
-        await createFeeStructure({
-          course_code: form.course_code,
-          academic_year: form.academic_year,
-          duration_unit: form.duration_unit,
-          tuition_fee: form.tuition_fee,
-          exam_fee: form.exam_fee,
-          library_fee: form.library_fee,
-          other_fee: form.other_fee
-        });
+        await createFeeStructure(payload);
         setToast({ message: 'Fee structure created.', variant: 'success' });
       }
       setForm(initialForm);
@@ -101,10 +94,10 @@ export default function FeeStructuresPage() {
       course_code: structure.course_code,
       academic_year: structure.academic_year,
       duration_unit: structure.duration_unit,
-      tuition_fee: structure.tuition_fee,
-      exam_fee: structure.exam_fee,
-      library_fee: structure.library_fee,
-      other_fee: structure.other_fee
+      tuition_fee: structure.tuition_fee === 0 ? '' : structure.tuition_fee,
+      exam_fee: structure.exam_fee === 0 ? '' : structure.exam_fee,
+      library_fee: structure.library_fee === 0 ? '' : structure.library_fee,
+      other_fee: structure.other_fee === 0 ? '' : structure.other_fee
     });
   }
 
@@ -166,8 +159,17 @@ export default function FeeStructuresPage() {
             <input
               type="number"
               min={1}
-              value={form.duration_unit}
-              onChange={(e) => setForm({ ...form, duration_unit: Number(e.target.value) })}
+              value={form.duration_unit === 0 || form.duration_unit === '0' ? '' : form.duration_unit}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, duration_unit: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, duration_unit: cleaned }));
+              }}
+              placeholder="e.g. 1"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />
           </div>
@@ -178,8 +180,17 @@ export default function FeeStructuresPage() {
               type="number"
               min={0}
               step={0.01}
-              value={form.tuition_fee}
-              onChange={(e) => setForm({ ...form, tuition_fee: Number(e.target.value) })}
+              value={form.tuition_fee === 0 || form.tuition_fee === '0' ? '' : form.tuition_fee}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, tuition_fee: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, tuition_fee: cleaned }));
+              }}
+              placeholder="0.00"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />
           </div>
@@ -190,8 +201,17 @@ export default function FeeStructuresPage() {
               type="number"
               min={0}
               step={0.01}
-              value={form.exam_fee}
-              onChange={(e) => setForm({ ...form, exam_fee: Number(e.target.value) })}
+              value={form.exam_fee === 0 || form.exam_fee === '0' ? '' : form.exam_fee}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, exam_fee: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, exam_fee: cleaned }));
+              }}
+              placeholder="0.00"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />
           </div>
@@ -202,8 +222,17 @@ export default function FeeStructuresPage() {
               type="number"
               min={0}
               step={0.01}
-              value={form.library_fee}
-              onChange={(e) => setForm({ ...form, library_fee: Number(e.target.value) })}
+              value={form.library_fee === 0 || form.library_fee === '0' ? '' : form.library_fee}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, library_fee: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, library_fee: cleaned }));
+              }}
+              placeholder="0.00"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />
           </div>
@@ -214,8 +243,17 @@ export default function FeeStructuresPage() {
               type="number"
               min={0}
               step={0.01}
-              value={form.other_fee}
-              onChange={(e) => setForm({ ...form, other_fee: Number(e.target.value) })}
+              value={form.other_fee === 0 || form.other_fee === '0' ? '' : form.other_fee}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setForm((prev) => ({ ...prev, other_fee: '' }));
+                  return;
+                }
+                const cleaned = val.replace(/^0+(?=\d)/, '');
+                setForm((prev) => ({ ...prev, other_fee: cleaned }));
+              }}
+              placeholder="0.00"
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
             />
           </div>
