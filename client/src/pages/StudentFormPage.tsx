@@ -16,14 +16,31 @@ import {
 import { getAssetUrl } from '../lib/api';
 import Toast from '../components/Toast';
 
-function normalizeAcademicYearOptions(currentYear?: string) {
-  if (!currentYear) return [];
-  const parts = currentYear.split('-');
-  const start = Number(parts[0]);
-  if (Number.isNaN(start)) return [currentYear];
-  return [start - 1, start, start + 1].map((year) => {
-    const next = String(year + 1).slice(-2);
-    return `${year}-${next}`;
+function normalizeAcademicYearOptions(currentYear?: string, extraYears: string[] = []) {
+  const yearSet = new Set<string>();
+  if (currentYear) {
+    const parts = currentYear.split('-');
+    const start = Number(parts[0]);
+    if (!Number.isNaN(start)) {
+      // Past 5 sessions, current session, next 2 sessions (covers 4-year & 5-year courses)
+      for (let y = start - 5; y <= start + 2; y++) {
+        const next = String(y + 1).slice(-2);
+        yearSet.add(`${y}-${next}`);
+      }
+    } else {
+      yearSet.add(currentYear);
+    }
+  }
+  for (const yr of extraYears) {
+    if (yr && typeof yr === 'string') yearSet.add(yr.trim());
+  }
+  return Array.from(yearSet).sort((a, b) => {
+    const matchA = a.match(/^(\d{4})/);
+    const matchB = b.match(/^(\d{4})/);
+    if (matchA && matchB) {
+      return parseInt(matchB[1], 10) - parseInt(matchA[1], 10);
+    }
+    return b.localeCompare(a);
   });
 }
 
@@ -83,12 +100,22 @@ export default function StudentFormPage() {
   async function loadFormData() {
     setLoading(true);
     try {
-      const [courseList, systemSettings] = await Promise.all([fetchCourses(), fetchSystemSettings()]);
+      const [courseList, systemSettings, dbYears] = await Promise.all([
+        fetchCourses(),
+        fetchSystemSettings(),
+        fetchAcademicYears()
+      ]);
       setCourses(courseList);
       setSettings(systemSettings);
+      setYearOptions(normalizeAcademicYearOptions(systemSettings.current_academic_year, dbYears));
       if (studentId) {
         const data = await fetchStudentById(studentId);
         setStudent(data);
+        if (data?.academic_year) {
+          setYearOptions((prev) =>
+            normalizeAcademicYearOptions(systemSettings.current_academic_year, [...prev, data.academic_year])
+          );
+        }
         setForm({
           name: data.name,
           course_code: data.course_code,

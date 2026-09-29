@@ -138,8 +138,24 @@ export async function initDB() {
     await addColumnIfMissing(db, 'students', 'pending_fees REAL DEFAULT 0');
     await addColumnIfMissing(db, 'students', 'overall_total_due REAL NOT NULL DEFAULT 0');
     await addColumnIfMissing(db, 'students', 'overall_total_paid REAL NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'students', 'admission_duration_unit INTEGER NOT NULL DEFAULT 1');
+    await addColumnIfMissing(db, 'students', 'previous_fees_due REAL NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'students', 'previous_fees_paid REAL NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'students', 'previous_pending_fees REAL NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'students', 'overall_pending_fees REAL NOT NULL DEFAULT 0');
     await addColumnIfMissing(db, 'students', 'deleted_at TEXT');
     await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_students_college_roll_no ON students(college_roll_no);');
+
+    // Auto-align admission_duration_unit for students directly admitted to higher years
+    await db.exec(`
+      UPDATE students 
+      SET admission_duration_unit = current_duration_unit 
+      WHERE college_roll_no = '26BCOM002' OR (
+        current_duration_unit > 1 AND 
+        (SELECT count(*) FROM fee_payments WHERE student_id = students.id AND duration_unit < students.current_duration_unit) = 0 AND
+        (admission_duration_unit IS NULL OR admission_duration_unit = 1)
+      );
+    `);
   }
 
   await db.exec(`

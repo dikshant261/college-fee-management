@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSync } from '../contexts/SyncContext';
+import Pagination from '../components/Pagination';
 import {
   fetchGoogleStatus,
   fetchGoogleAuthUrl,
@@ -21,7 +22,9 @@ export default function GoogleDriveSyncPage() {
   const [loadingGoogle, setLoadingGoogle] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const toggleExpand = (id: number) => {
     setExpandedCommits((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -44,7 +47,10 @@ export default function GoogleDriveSyncPage() {
           console.warn('fetchGoogleStatus error:', err);
           return { connected: false, configured: true, userEmail: null, folderId: null, folderName: null };
         }),
-        fetchSyncHistory(25).catch(() => []),
+        fetchSyncHistory(100).catch((err) => {
+          console.warn('fetchSyncHistory error:', err);
+          return [];
+        }),
       ]);
       setGoogleStatus(gStatus);
       setHistory(hist);
@@ -52,6 +58,28 @@ export default function GoogleDriveSyncPage() {
       console.error('Failed to load Google status / history:', err);
     } finally {
       setLoadingGoogle(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setActionMessage(null);
+    try {
+      await Promise.all([
+        loadData(),
+        refreshStatus(),
+      ]);
+      setActionMessage({
+        type: 'success',
+        text: 'Google Drive status and sync history refreshed successfully.',
+      });
+    } catch (err: any) {
+      setActionMessage({
+        type: 'error',
+        text: err?.message || 'Failed to refresh synchronization status.',
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -160,13 +188,19 @@ export default function GoogleDriveSyncPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={loadData}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 shadow-2xs transition"
           >
-            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -426,7 +460,7 @@ export default function GoogleDriveSyncPage() {
       </div>
 
 
-      {/* Card 4: GitHub-like Revision Timeline & Change History */}
+      {/* Card 4: Revision History & Change Tracker Table */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
           <div>
@@ -434,77 +468,66 @@ export default function GoogleDriveSyncPage() {
               <svg className="w-4 h-4 text-slate-700" viewBox="0 0 16 16" fill="currentColor">
                 <path fillRule="evenodd" d="M10.5 7.75a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm1.43.75a4.002 4.002 0 01-7.86 0H.75a.75.75 0 110-1.5h3.32a4.002 4.002 0 017.86 0h3.32a.75.75 0 110 1.5h-3.32z" />
               </svg>
-              Revision History & Change Tracker (Git-style)
+              Revision History &amp; Change Tracker (Git-style)
             </h2>
             <p className="text-2xs text-slate-500 mt-0.5">
               Every created, updated, and deleted record, media upload, and database snapshot tracked with full changelogs
             </p>
           </div>
-          <span className="text-2xs text-slate-400 font-medium self-start sm:self-auto">
-            Showing latest {history.length} sync commits
+          <span className="text-2xs text-slate-500 font-medium self-start sm:self-auto">
+            Total {history.length} sync commits
           </span>
         </div>
 
-        {history.length === 0 ? (
-          <div className="py-12 text-center text-slate-400">
-            <svg className="w-10 h-10 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-xs font-medium text-slate-500">No synchronization events recorded yet.</p>
-            <p className="text-2xs text-slate-400 mt-0.5">Connect Google Drive and click "Sync Now" to create your first commit.</p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {history.map((item, index) => {
-              const commit = parseCommit(item);
-              const isExpanded = Boolean(expandedCommits[item.id]);
-              const tableChanges = commit?.tableChanges || [];
-              const filesSynced = commit?.filesSynced || [];
-              const dbSnapshot = commit?.dbSnapshot;
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] min-h-[350px] mt-4">
+          <table className="min-w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">
+                  Revision
+                </th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">
+                  Trigger
+                </th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">
+                  Status
+                </th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">
+                  Summary &amp; Changes
+                </th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">
+                  Timestamp
+                </th>
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2 text-right text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">
+                  Details
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {history
+                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                .map((item) => {
+                  const commit = parseCommit(item);
+                  const isExpanded = Boolean(expandedCommits[item.id]);
+                  const tableChanges = commit?.tableChanges || [];
+                  const filesSynced = commit?.filesSynced || [];
+                  const dbSnapshot = commit?.dbSnapshot;
 
-              // Change metrics counts
-              const creates = tableChanges.filter((c) => c.operation === 'CREATE').length;
-              const updates = tableChanges.filter((c) => c.operation === 'UPDATE').length;
-              const deletes = tableChanges.filter((c) => c.operation === 'DELETE').length;
+                  const creates = tableChanges.filter((c) => c.operation === 'CREATE').length;
+                  const updates = tableChanges.filter((c) => c.operation === 'UPDATE').length;
+                  const deletes = tableChanges.filter((c) => c.operation === 'DELETE').length;
 
-              const isInitial = item.trigger_type as string === 'initial_backup' || commit?.trigger === 'initial_backup';
+                  const isInitial = item.trigger_type as string === 'initial_backup' || commit?.trigger === 'initial_backup';
 
-              return (
-                <div
-                  key={item.id}
-                  className={`rounded-lg border transition duration-150 ${
-                    item.status === 'failed'
-                      ? 'border-red-200 bg-red-50/20'
-                      : isExpanded
-                      ? 'border-blue-300 bg-blue-50/10 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  {/* Commit Main Header Row */}
-                  <div className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      {/* Git commit icon badge */}
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 ${
-                          item.status === 'failed'
-                            ? 'bg-red-100 text-red-700'
-                            : item.status === 'partial'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                          <path fillRule="evenodd" d="M10.5 7.75a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm1.43.75a4.002 4.002 0 01-7.86 0H.75a.75.75 0 110-1.5h3.32a4.002 4.002 0 017.86 0h3.32a.75.75 0 110 1.5h-3.32z" />
-                        </svg>
-                      </div>
-
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
+                  return (
+                    <React.Fragment key={item.id}>
+                      <tr className={`hover:bg-slate-50 transition ${item.status === 'failed' ? 'bg-red-50/20' : isExpanded ? 'bg-blue-50/20' : ''}`}>
+                        <td className="px-4 py-2.5 border-b border-slate-100 text-slate-700">
                           <span className="font-mono text-xs font-bold text-slate-800">
                             rev #{commit?.version || item.id}
                           </span>
-
-                          {/* Trigger Pill */}
+                        </td>
+                        <td className="px-4 py-2.5 border-b border-slate-100">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold ${
                               isInitial
@@ -524,8 +547,8 @@ export default function GoogleDriveSyncPage() {
                               ? 'Database Restore'
                               : 'Manual Sync'}
                           </span>
-
-                          {/* Status Pill */}
+                        </td>
+                        <td className="px-4 py-2.5 border-b border-slate-100">
                           <span
                             className={`inline-flex items-center px-1.5 py-0.5 rounded text-3xs font-bold uppercase ${
                               item.status === 'success'
@@ -537,213 +560,237 @@ export default function GoogleDriveSyncPage() {
                           >
                             {item.status}
                           </span>
-
-                          <span className="text-2xs text-slate-400">
-                            {new Date(item.started_at).toLocaleString([], {
-                              dateStyle: 'medium',
-                              timeStyle: 'short',
+                        </td>
+                        <td className="px-4 py-2.5 border-b border-slate-100 text-slate-700">
+                          <div className="font-medium text-xs text-slate-800">
+                            {commit?.summary || item.error_message || `${item.items_synced} item(s) synchronized`}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            {creates > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                +{creates} created
+                              </span>
+                            )}
+                            {updates > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                ~{updates} updated
+                              </span>
+                            )}
+                            {deletes > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-red-50 text-red-700 border border-red-200">
+                                -{deletes} deleted
+                              </span>
+                            )}
+                            {filesSynced.length > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                📷 {filesSynced.length} file{filesSynced.length > 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {dbSnapshot && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                                💾 {Math.round(dbSnapshot.sizeBytes / 1024)} KB
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 border-b border-slate-100 text-slate-600 text-xs whitespace-nowrap">
+                          <div>
+                            {new Date(item.started_at).toLocaleDateString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
                             })}
-                          </span>
-                        </div>
-
-                        {/* Commit Message / Summary */}
-                        <p className="text-xs text-slate-700 mt-1 font-medium">
-                          {commit?.summary || item.error_message || `${item.items_synced} item(s) synchronized`}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Change Diff Badges & Expand Button */}
-                    <div className="flex items-center gap-2 self-end md:self-center">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {creates > 0 && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            +{creates} created
-                          </span>
-                        )}
-                        {updates > 0 && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                            ~{updates} updated
-                          </span>
-                        )}
-                        {deletes > 0 && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-bold bg-red-50 text-red-700 border border-red-200">
-                            -{deletes} deleted
-                          </span>
-                        )}
-                        {filesSynced.length > 0 && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
-                            📷 {filesSynced.length} file{filesSynced.length > 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {dbSnapshot && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                            💾 {Math.round(dbSnapshot.sizeBytes / 1024)} KB
-                          </span>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleExpand(item.id)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-2xs font-semibold rounded border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 transition"
-                      >
-                        {isExpanded ? 'Hide Details' : 'View Changes'}
-                        <svg
-                          className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                            isExpanded ? 'rotate-180' : ''
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expanded Git-like Diff Panel */}
-                  {isExpanded && (
-                    <div className="border-t border-slate-200 bg-slate-50/70 p-4 space-y-4">
-                      {item.error_message && (
-                        <div className="p-3 rounded bg-red-100/70 border border-red-200 text-red-900 text-xs">
-                          <strong>Sync Error:</strong> {item.error_message}
-                        </div>
-                      )}
-
-                      {/* Section 1: Database Table Changes */}
-                      <div>
-                        <h4 className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                          <span>🗄️</span> SQLite Records Changed ({tableChanges.length})
-                        </h4>
-                        {tableChanges.length === 0 ? (
-                          <p className="text-2xs text-slate-400 italic">No specific record mutations in this revision.</p>
-                        ) : (
-                          <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
-                            <table className="w-full text-left text-xs">
-                              <thead>
-                                <tr className="border-b border-slate-200 text-3xs font-bold text-slate-400 uppercase tracking-wider bg-slate-100/60">
-                                  <th className="py-1.5 px-3">Operation</th>
-                                  <th className="py-1.5 px-3">Table</th>
-                                  <th className="py-1.5 px-3">Record Identifier</th>
-                                  <th className="py-1.5 px-3">Destination File</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 font-mono text-2xs">
-                                {tableChanges.map((change, cIdx) => (
-                                  <tr key={cIdx} className="hover:bg-slate-50/60">
-                                    <td className="py-1.5 px-3 font-sans">
-                                      {change.operation === 'CREATE' && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-emerald-100 text-emerald-800">
-                                          + CREATE
-                                        </span>
-                                      )}
-                                      {change.operation === 'UPDATE' && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-blue-100 text-blue-800">
-                                          ~ UPDATE
-                                        </span>
-                                      )}
-                                      {change.operation === 'DELETE' && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-red-100 text-red-800">
-                                          - DELETE
-                                        </span>
-                                      )}
-                                      {change.operation === 'SKIP' && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-slate-100 text-slate-600">
-                                          SKIP
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-1.5 px-3 font-semibold font-sans text-slate-700 capitalize">
-                                      {change.table.replace('_', ' ')}
-                                    </td>
-                                    <td className="py-1.5 px-3 text-slate-600">
-                                      {change.recordId}
-                                    </td>
-                                    <td className="py-1.5 px-3 text-slate-400">
-                                      {change.table}.json
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
                           </div>
-                        )}
-                      </div>
+                          <div className="text-2xs text-slate-400">
+                            {new Date(item.started_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit'
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 border-b border-slate-100 text-right">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(item.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition"
+                          >
+                            {isExpanded ? 'Hide' : 'Details'}
+                            <svg
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                isExpanded ? 'rotate-180 text-blue-600' : 'text-slate-400'
+                              }`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
 
-                      {/* Section 2: Uploads Assets Synchronized */}
-                      <div>
-                        <h4 className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                          <span>📁</span> Uploads Directory Changes ({filesSynced.length})
-                        </h4>
-                        {filesSynced.length === 0 ? (
-                          <p className="text-2xs text-slate-400 italic">No media or document files altered in this cycle.</p>
-                        ) : (
-                          <div className="bg-white rounded-md border border-slate-200 overflow-hidden divide-y divide-slate-100 text-xs">
-                            {filesSynced.map((file, fIdx) => (
-                              <div key={fIdx} className="p-2 px-3 flex items-center justify-between font-mono text-2xs">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded text-3xs font-bold font-sans uppercase ${
-                                      file.action === 'uploaded'
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : file.action === 'updated'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-red-100 text-red-800'
-                                    }`}
-                                  >
-                                    {file.action}
-                                  </span>
-                                  <span className="text-slate-800">{file.path}</span>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={6} className="bg-slate-50/90 px-5 py-4 border-b border-slate-200">
+                            <div className="space-y-4">
+                              {item.error_message && (
+                                <div className="p-3 rounded bg-red-100/70 border border-red-200 text-red-900 text-xs">
+                                  <strong>Sync Error:</strong> {item.error_message}
                                 </div>
-                                <span className="text-slate-400 text-3xs font-sans">
-                                  Synced to Drive: uploads/{file.path}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                              )}
 
-                      {/* Section 3: SQLite Database Snapshot */}
-                      {dbSnapshot && (
-                        <div>
-                          <h4 className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                            <span>💾</span> SQLite Binary Snapshot (college.db)
-                          </h4>
-                          <div className="bg-white rounded-md border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="p-1.5 bg-purple-100 text-purple-800 rounded font-bold text-2xs">
-                                SQLITE3
-                              </span>
+                              {/* Section 1: Database Table Changes */}
                               <div>
-                                <p className="font-semibold text-slate-800 font-mono text-2xs">college.db</p>
-                                <p className="text-3xs text-slate-500">
-                                  Snapshot taken with WAL checkpoint flush (PASSIVE)
-                                </p>
+                                <h4 className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                                  <span>🗄️</span> SQLite Records Changed ({tableChanges.length})
+                                </h4>
+                                {tableChanges.length === 0 ? (
+                                  <p className="text-2xs text-slate-400 italic">No specific record mutations in this revision.</p>
+                                ) : (
+                                  <div className="bg-white rounded-md border border-slate-200 overflow-hidden shadow-2xs">
+                                    <table className="w-full text-left text-xs">
+                                      <thead>
+                                        <tr className="border-b border-slate-200 text-3xs font-bold text-slate-500 uppercase tracking-wider bg-slate-100/80">
+                                          <th className="py-2 px-3">Operation</th>
+                                          <th className="py-2 px-3">Table</th>
+                                          <th className="py-2 px-3">Record Identifier</th>
+                                          <th className="py-2 px-3">Destination File</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 font-mono text-2xs">
+                                        {tableChanges.map((change, cIdx) => (
+                                          <tr key={cIdx} className="hover:bg-slate-50">
+                                            <td className="py-1.5 px-3 font-sans">
+                                              {change.operation === 'CREATE' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-emerald-100 text-emerald-800">
+                                                  + CREATE
+                                                </span>
+                                              )}
+                                              {change.operation === 'UPDATE' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-blue-100 text-blue-800">
+                                                  ~ UPDATE
+                                                </span>
+                                              )}
+                                              {change.operation === 'DELETE' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-red-100 text-red-800">
+                                                  - DELETE
+                                                </span>
+                                              )}
+                                              {change.operation === 'SKIP' && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold bg-slate-100 text-slate-600">
+                                                  SKIP
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td className="py-1.5 px-3 font-semibold font-sans text-slate-700 capitalize">
+                                              {change.table.replace('_', ' ')}
+                                            </td>
+                                            <td className="py-1.5 px-3 text-slate-600">
+                                              {change.recordId}
+                                            </td>
+                                            <td className="py-1.5 px-3 text-slate-400">
+                                              {change.table}.json
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
                               </div>
+
+                              {/* Section 2: Uploads Directory Changes */}
+                              <div>
+                                <h4 className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                                  <span>📁</span> Uploads Directory Changes ({filesSynced.length})
+                                </h4>
+                                {filesSynced.length === 0 ? (
+                                  <p className="text-2xs text-slate-400 italic">No media or document files altered in this cycle.</p>
+                                ) : (
+                                  <div className="bg-white rounded-md border border-slate-200 overflow-hidden divide-y divide-slate-100 text-xs shadow-2xs">
+                                    {filesSynced.map((file, fIdx) => (
+                                      <div key={fIdx} className="p-2 px-3 flex items-center justify-between font-mono text-2xs">
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className={`px-1.5 py-0.5 rounded text-3xs font-bold font-sans uppercase ${
+                                              file.action === 'uploaded'
+                                                ? 'bg-emerald-100 text-emerald-800'
+                                                : file.action === 'updated'
+                                                ? 'bg-blue-100 text-blue-800'
+                                                : 'bg-red-100 text-red-800'
+                                            }`}
+                                          >
+                                            {file.action}
+                                          </span>
+                                          <span className="text-slate-800">{file.path}</span>
+                                        </div>
+                                        <span className="text-slate-400 text-3xs font-sans">
+                                          Synced to Drive: uploads/{file.path}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Section 3: SQLite Database Snapshot */}
+                              {dbSnapshot && (
+                                <div>
+                                  <h4 className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                                    <span>💾</span> SQLite Binary Snapshot (college.db)
+                                  </h4>
+                                  <div className="bg-white rounded-md border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="p-1.5 bg-purple-100 text-purple-800 rounded font-bold text-2xs">
+                                        SQLITE3
+                                      </span>
+                                      <div>
+                                        <p className="font-semibold text-slate-800 font-mono text-2xs">college.db</p>
+                                        <p className="text-3xs text-slate-500">
+                                          Snapshot taken with WAL checkpoint flush (PASSIVE)
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-2xs font-mono text-slate-600">
+                                      <span>Size: {(dbSnapshot.sizeBytes / 1024).toFixed(1)} KB</span>
+                                      <span className="text-3xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 truncate max-w-xs">
+                                        ID: {dbSnapshot.fileId}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            <div className="flex items-center gap-3 text-2xs font-mono text-slate-600">
-                              <span>Size: {(dbSnapshot.sizeBytes / 1024).toFixed(1)} KB</span>
-                              <span className="text-3xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 truncate max-w-xs">
-                                ID: {dbSnapshot.fileId}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                          </td>
+                        </tr>
                       )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    </React.Fragment>
+                  );
+                })}
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500 border-b border-slate-100 text-xs">
+                    No synchronization events recorded yet. Connect Google Drive and click "Sync Now" to create your first commit.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+
+        {history.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={history.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[10, 20, 30, 50, 100]}
+            itemLabel="sync revisions"
+          />
         )}
       </div>
-
-
     </div>
   );
 }
-

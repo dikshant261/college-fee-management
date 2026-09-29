@@ -4,6 +4,7 @@ import { Course, Student, fetchAcademicYears, fetchCourses, fetchStudents, delet
 import { getAssetUrl } from '../lib/api';
 import Toast from '../components/Toast';
 import Pagination from '../components/Pagination';
+import StudentModal from '../components/StudentModal';
 
 export default function StudentListPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -18,6 +19,8 @@ export default function StudentListPage() {
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; variant?: 'success' | 'error' | 'info' } | null>(null);
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
   const navigate = useNavigate();
 
   const selectedCourse = useMemo(() => {
@@ -97,10 +100,16 @@ export default function StudentListPage() {
           <p className="text-xs text-slate-500">Manage enrolled students, academic records, and fee balances.</p>
         </div>
         <button
-          onClick={() => navigate('/students/new')}
-          className="inline-flex items-center justify-center rounded-md bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-4 py-2 text-sm font-medium text-white transition border border-blue-700 shadow-xs"
+          onClick={() => {
+            setEditingStudentId(null);
+            setIsStudentModalOpen(true);
+          }}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-3.5 py-2 text-xs font-semibold text-white transition border border-blue-700 shadow-xs"
         >
-          + New Student
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Student
         </button>
       </div>
 
@@ -216,7 +225,10 @@ export default function StudentListPage() {
               </button>
             ) : (
               <button
-                onClick={() => navigate('/students/new')}
+                onClick={() => {
+                  setEditingStudentId(null);
+                  setIsStudentModalOpen(true);
+                }}
                 className="mt-3 rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-1.5 text-xs font-medium text-white border border-blue-700 shadow-xs"
               >
                 Add First Student
@@ -227,24 +239,24 @@ export default function StudentListPage() {
           <>
             {/* Scrollable Table Area with Fixed Max-Height and Sticky Header */}
             <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-240px)] min-h-[350px]">
-              <table className="min-w-full text-sm border-separate border-spacing-0">
+              <table className="min-w-[1100px] w-full text-sm border-separate border-spacing-0">
                 <thead>
                   <tr>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Photo</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Roll No</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Name</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Course</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Current Year</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Total Fee</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Pending Fee</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">QR Code</th>
-                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs">Actions</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[60px]">Photo</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[120px]">Roll No</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[190px]">Student Name</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[170px]">Course</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[110px]">Current Year</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[130px]">Total Fee</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[150px]">Pending Fee</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[90px]">QR Code</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-4 py-2.5 text-left text-xs uppercase tracking-wider text-slate-700 font-semibold shadow-xs whitespace-nowrap min-w-[150px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
                   {paginatedStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-2 align-middle border-b border-slate-100">
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 whitespace-nowrap">
                         <div className="h-9 w-9 overflow-hidden rounded-md bg-slate-100 border border-slate-200">
                           {student.photo_path ? (
                             <img src={getAssetUrl(student.photo_path)} alt={student.name} className="h-full w-full object-cover" />
@@ -255,41 +267,62 @@ export default function StudentListPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-900 font-semibold font-mono text-xs">{student.college_roll_no}</td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-800 font-medium text-xs">{student.name}</td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-700 text-xs">{student.course_name || student.course_code}</td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100 text-slate-700 text-xs">Year {student.current_duration_unit}</td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100 font-semibold text-slate-900 text-xs">
-                        ₹{Number(student.total_fees_due || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 text-slate-900 font-semibold font-mono text-xs whitespace-nowrap">{student.college_roll_no}</td>
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 text-slate-900 font-semibold text-xs whitespace-nowrap">{student.name}</td>
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 text-slate-700 text-xs whitespace-nowrap">{student.course_name || student.course_code}</td>
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 text-slate-800 text-xs font-semibold whitespace-nowrap">Year {student.current_duration_unit}</td>
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 text-xs whitespace-nowrap">
+                        <div className="font-semibold text-slate-900">
+                          ₹{Number(student.total_fees_due || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {Number(student.overall_total_due || 0) > Number(student.total_fees_due || 0) && (
+                          <div className="text-2xs text-slate-500 font-normal">
+                            Overall: ₹{Number(student.overall_total_due).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100">
-                        {Number(student.pending_fees) <= 0 ? (
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 whitespace-nowrap">
+                        {Number(student.overall_pending_fees ?? student.pending_fees) <= 0 ? (
                           <span className="inline-flex items-center gap-1 rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                             0
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded bg-red-50 border border-red-200 px-2 py-0.5 text-xs font-medium text-red-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-                            ₹{Number(student.pending_fees).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Left
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 rounded bg-red-50 border border-red-200 px-2 py-0.5 text-xs font-semibold text-red-700 w-fit">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                              ₹{Number(student.overall_pending_fees ?? student.pending_fees).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Left
+                            </span>
+                            {Number(student.previous_pending_fees || 0) > 0 && (
+                              <span className="text-2xs text-rose-600 font-medium">
+                                (₹{Number(student.previous_pending_fees).toLocaleString('en-IN')} Prev + ₹{Number(student.pending_fees).toLocaleString('en-IN')} Curr)
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100">
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 whitespace-nowrap">
                         {student.qr_code ? (
                           <img src={getAssetUrl(student.qr_code)} alt="QR code" className="h-9 w-9 rounded-md border border-slate-200 object-contain bg-white p-0.5" />
                         ) : (
                           <span className="text-2xs text-slate-400">None</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 align-middle border-b border-slate-100">
+                      <td className="px-4 py-2.5 align-middle border-b border-slate-100 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Link to={`/students/${student.id}`} className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-xs transition">
                             View
                           </Link>
-                          <Link to={`/students/${student.id}/edit`} className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 shadow-xs transition">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStudentId(student.id);
+                              setIsStudentModalOpen(true);
+                            }}
+                            className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 shadow-xs transition"
+                          >
                             Edit
-                          </Link>
+                          </button>
                           <button
                             onClick={() => handleDelete(student.id, student.name)}
                             className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 shadow-xs transition"
@@ -316,6 +349,23 @@ export default function StudentListPage() {
           </>
         )}
       </div>
+
+      {/* Student Modal */}
+      <StudentModal
+        isOpen={isStudentModalOpen}
+        onClose={() => {
+          setIsStudentModalOpen(false);
+          setEditingStudentId(null);
+        }}
+        studentId={editingStudentId}
+        onSuccess={() => {
+          loadData();
+          setToast({
+            message: editingStudentId ? 'Student updated successfully.' : 'Student enrolled successfully.',
+            variant: 'success'
+          });
+        }}
+      />
 
       {toast ? <Toast message={toast.message} variant={toast.variant} /> : null}
     </div>

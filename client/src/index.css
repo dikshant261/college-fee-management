@@ -10,3 +10,22 @@ body,
   -webkit-font-smoothing: antialiased;
   background-color: #f1f5f9;
 }
+
+@media print {
+  aside,
+  header,
+  nav,
+  .print\\:hidden {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+    height: auto !important;
+    max-width: 100% !important;
+  }
+  body, html, #root {
+    height: auto !important;
+    background: white !important;
+  }
+}

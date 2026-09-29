@@ -7,6 +7,15 @@ export interface Course {
   total_duration: number;
 }
 
+export interface FeeBreakdownItem {
+  duration_unit: number;
+  academic_year?: string;
+  is_current: boolean;
+  total_fee: number;
+  paid: number;
+  pending: number;
+}
+
 export interface Student {
   id: number;
   name: string;
@@ -14,6 +23,7 @@ export interface Student {
   university_roll_no?: string;
   course_code: string;
   course_name?: string;
+  admission_duration_unit?: number;
   current_duration_unit: number;
   academic_year: string;
   class?: string;
@@ -25,8 +35,13 @@ export interface Student {
   total_fees_due: number;
   total_fees_paid: number;
   pending_fees: number;
+  previous_fees_due?: number;
+  previous_fees_paid?: number;
+  previous_pending_fees?: number;
   overall_total_due: number;
   overall_total_paid: number;
+  overall_pending_fees?: number;
+  fee_breakdown?: FeeBreakdownItem[];
   created_at: string;
   updated_at: string;
 }

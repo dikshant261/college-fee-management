@@ -20,16 +20,31 @@ export interface StudentInput {
   university_roll_no?: string;
 }
 
+export interface FeeBreakdownItem {
+  duration_unit: number;
+  academic_year?: string;
+  is_current: boolean;
+  total_fee: number;
+  paid: number;
+  pending: number;
+}
+
 export interface StudentRecord extends StudentInput {
   id: number;
   college_roll_no: string;
   photo_path?: string | null;
   qr_code?: string | null;
+  admission_duration_unit: number;
   total_fees_due: number;
   total_fees_paid: number;
   pending_fees: number;
+  previous_fees_due?: number;
+  previous_fees_paid?: number;
+  previous_pending_fees?: number;
   overall_total_due: number;
   overall_total_paid: number;
+  overall_pending_fees?: number;
+  fee_breakdown?: FeeBreakdownItem[];
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -64,26 +79,46 @@ function getAcademicYearCode(academicYear: string) {
   return cleaned.slice(0, 2);
 }
 
-async function getNextCollegeSequence(
-  db: Database<sqlite3.Database, sqlite3.Statement>,
-  courseCode: string,
-  academicYear: string
-) {
-  const row = await db.get<{ max_seq: number | null }>(
-    `SELECT MAX(CAST(substr(college_roll_no, -3) AS INTEGER)) AS max_seq
-     FROM students
-     WHERE course_code = ? AND academic_year = ?`,
-    courseCode,
-    academicYear
-  );
-  return String((row?.max_seq || 0) + 1).padStart(3, '0');
-}
-
-export async function generateCollegeRollNo(courseCode: string, academicYear: string) {
+export async function generateCollegeRollNo(courseCode: string, academicYear: string): Promise<string> {
   const db = getDB();
   const yearCode = getAcademicYearCode(academicYear);
-  const sequence = await getNextCollegeSequence(db, courseCode, academicYear);
-  return `${yearCode}${courseCode}${sequence}`;
+  const prefix = `${yearCode}${courseCode}`;
+
+  // Find all existing roll numbers with this prefix across the entire table (regardless of academic_year or soft delete)
+  const rows = await db.all<Array<{ college_roll_no: string }>>(
+    `SELECT college_roll_no FROM students WHERE college_roll_no LIKE ?`,
+    `${prefix}%`
+  );
+
+  let maxSeq = 0;
+  for (const row of rows) {
+    const roll = row?.college_roll_no || '';
+    if (roll.startsWith(prefix)) {
+      const suffix = roll.slice(prefix.length);
+      const parsed = parseInt(suffix, 10);
+      if (!isNaN(parsed) && parsed > maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+  }
+
+  // Find the next truly available roll number that doesn't collide with ANY existing record
+  let nextSeq = maxSeq + 1;
+  let candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+
+  while (true) {
+    const existing = await db.get<{ id: number }>(
+      `SELECT id FROM students WHERE college_roll_no = ?`,
+      candidate
+    );
+    if (!existing) {
+      break;
+    }
+    nextSeq++;
+    candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+  }
+
+  return candidate;
 }
 
 export async function calculateTotalFees(
@@ -102,50 +137,34 @@ export async function calculateTotalFees(
   return row?.total_fee ?? 0;
 }
 
-export async function createStudent(input: StudentInput) {
+export async function createStudent(input: StudentInput & { admission_duration_unit?: number }) {
   const db = getDB();
-  const college_roll_no = await generateCollegeRollNo(input.course_code, input.academic_year);
+  const admissionUnit = Number(input.admission_duration_unit || input.current_duration_unit || 1);
   const total_fees_due = await calculateTotalFees(input.course_code, input.academic_year, input.current_duration_unit);
   const overall_total_due = total_fees_due;
   const total_fees_paid = 0;
   const overall_total_paid = 0;
 
-  let insertResult;
-  try {
-    insertResult = await db.run(
-      `INSERT INTO students (
-        name, college_roll_no, university_roll_no, course_code, current_duration_unit,
-        academic_year, class, section, phone, address,
-        total_fees_due, total_fees_paid, overall_total_due, overall_total_paid
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      input.name,
-      college_roll_no,
-      input.university_roll_no || null,
-      input.course_code,
-      input.current_duration_unit,
-      input.academic_year,
-      input.class || null,
-      input.section || null,
-      input.phone || null,
-      input.address || null,
-      total_fees_due,
-      total_fees_paid,
-      overall_total_due,
-      overall_total_paid
-    );
-  } catch (error: any) {
-    if (error?.code === 'SQLITE_CONSTRAINT' && error?.message?.includes('students.college_roll_no')) {
-      const fallbackRoll = await generateCollegeRollNo(input.course_code, input.academic_year);
+  let insertResult: any = null;
+  let college_roll_no = '';
+  let attempts = 0;
+
+  while (attempts < 5) {
+    attempts++;
+    college_roll_no = await generateCollegeRollNo(input.course_code, input.academic_year);
+
+    try {
       insertResult = await db.run(
         `INSERT INTO students (
-          name, college_roll_no, university_roll_no, course_code, current_duration_unit,
+          name, college_roll_no, university_roll_no, course_code, admission_duration_unit, current_duration_unit,
           academic_year, class, section, phone, address,
           total_fees_due, total_fees_paid, overall_total_due, overall_total_paid
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         input.name,
-        fallbackRoll,
+        college_roll_no,
         input.university_roll_no || null,
         input.course_code,
+        admissionUnit,
         input.current_duration_unit,
         input.academic_year,
         input.class || null,
@@ -157,12 +176,21 @@ export async function createStudent(input: StudentInput) {
         overall_total_due,
         overall_total_paid
       );
-    } else {
+      break;
+    } catch (error: any) {
+      if (
+        error?.code === 'SQLITE_CONSTRAINT' &&
+        error?.message?.includes('students.college_roll_no') &&
+        attempts < 5
+      ) {
+        console.warn(`[StudentService] Roll number collision detected (${college_roll_no}), retrying with next sequence (attempt ${attempts})...`);
+        continue;
+      }
       throw error;
     }
   }
 
-  const studentId = insertResult.lastID;
+  const studentId = insertResult?.lastID;
   if (!studentId) {
     throw new Error('Unable to create student record');
   }
@@ -175,9 +203,85 @@ export async function createStudent(input: StudentInput) {
   return getStudentById(studentId);
 }
 
+export async function getStudentFeeBreakdown(
+  db: Database<sqlite3.Database, sqlite3.Statement>,
+  student: StudentRecord
+): Promise<FeeBreakdownItem[]> {
+  const admissionUnit = Number(student.admission_duration_unit || 1);
+  const currentUnit = Number(student.current_duration_unit || 1);
+
+  const payments = await db.all<Array<{ duration_unit: number; total: number }>>(
+    `SELECT duration_unit, SUM(amount) as total 
+     FROM fee_payments 
+     WHERE student_id = ? 
+     GROUP BY duration_unit`,
+    student.id
+  );
+  const paymentMap = new Map<number, number>();
+  for (const p of payments) {
+    paymentMap.set(Number(p.duration_unit), Number(p.total) || 0);
+  }
+
+  const breakdown: FeeBreakdownItem[] = [];
+
+  for (let u = admissionUnit; u <= currentUnit; u++) {
+    const isCurrent = (u === currentUnit);
+    let unitDue = 0;
+    let unitYear = student.academic_year;
+
+    if (isCurrent) {
+      unitDue = Number(student.total_fees_due) || 0;
+    } else {
+      const delta = currentUnit - u;
+      const m = student.academic_year.match(/^(\d{4})-(\d{2})/);
+      if (m && delta > 0) {
+        const startY = parseInt(m[1], 10) - delta;
+        const endY = parseInt(m[2], 10) - delta;
+        unitYear = `${startY}-${String(endY).padStart(2, '0')}`;
+      }
+
+      let fsU = await db.get<{ total_fee: number }>(
+        `SELECT total_fee FROM fee_structures 
+         WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
+        student.course_code, unitYear, u
+      );
+      if (!fsU) {
+        fsU = await db.get<{ total_fee: number }>(
+          `SELECT total_fee FROM fee_structures 
+           WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
+          student.course_code, student.academic_year, u
+        );
+      }
+      if (!fsU) {
+        fsU = await db.get<{ total_fee: number }>(
+          `SELECT total_fee FROM fee_structures 
+           WHERE course_code = ? AND duration_unit = ? 
+           ORDER BY id DESC LIMIT 1`,
+          student.course_code, u
+        );
+      }
+      unitDue = fsU ? Number(fsU.total_fee) : 0;
+    }
+
+    const unitPaid = paymentMap.get(u) || 0;
+    const unitPending = Math.max(0, unitDue - unitPaid);
+
+    breakdown.push({
+      duration_unit: u,
+      academic_year: unitYear,
+      is_current: isCurrent,
+      total_fee: unitDue,
+      paid: unitPaid,
+      pending: unitPending
+    });
+  }
+
+  return breakdown;
+}
+
 export async function getStudentById(id: number) {
   const db = getDB();
-  return db.get<StudentRecord & { course_name?: string }>(
+  const student = await db.get<StudentRecord & { course_name?: string }>(
     `SELECT s.*, 
             c.name AS course_name,
             COALESCE(s.total_fees_due, 0) AS total_fees_due,
@@ -194,18 +298,41 @@ export async function getStudentById(id: number) {
                 0
               )
             ) AS pending_fees,
+            COALESCE(s.previous_fees_due, 0) AS previous_fees_due,
+            COALESCE(
+              (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit < s.current_duration_unit),
+              s.previous_fees_paid,
+              0
+            ) AS previous_fees_paid,
+            MAX(
+              0,
+              COALESCE(s.previous_fees_due, 0) - COALESCE(
+                (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit < s.current_duration_unit),
+                s.previous_fees_paid,
+                0
+              )
+            ) AS previous_pending_fees,
             COALESCE(s.overall_total_due, 0) AS overall_total_due,
-            COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid
+            COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid,
+            MAX(
+              0,
+              COALESCE(s.overall_total_due, 0) - COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0)
+            ) AS overall_pending_fees
       FROM students s
       LEFT JOIN courses c ON s.course_code = c.code
       WHERE s.id = ? AND s.deleted_at IS NULL`,
     id
   );
+
+  if (student) {
+    student.fee_breakdown = await getStudentFeeBreakdown(db, student);
+  }
+  return student;
 }
 
 export async function getStudentByRollNo(rollNo: string) {
   const db = getDB();
-  return db.get<StudentRecord & { course_name?: string }>(
+  const student = await db.get<StudentRecord & { course_name?: string }>(
     `SELECT s.*, 
             c.name AS course_name,
             COALESCE(s.total_fees_due, 0) AS total_fees_due,
@@ -222,13 +349,36 @@ export async function getStudentByRollNo(rollNo: string) {
                 0
               )
             ) AS pending_fees,
+            COALESCE(s.previous_fees_due, 0) AS previous_fees_due,
+            COALESCE(
+              (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit < s.current_duration_unit),
+              s.previous_fees_paid,
+              0
+            ) AS previous_fees_paid,
+            MAX(
+              0,
+              COALESCE(s.previous_fees_due, 0) - COALESCE(
+                (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit < s.current_duration_unit),
+                s.previous_fees_paid,
+                0
+              )
+            ) AS previous_pending_fees,
             COALESCE(s.overall_total_due, 0) AS overall_total_due,
-            COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid
+            COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid,
+            MAX(
+              0,
+              COALESCE(s.overall_total_due, 0) - COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0)
+            ) AS overall_pending_fees
       FROM students s
       LEFT JOIN courses c ON s.course_code = c.code
       WHERE s.college_roll_no = ? AND s.deleted_at IS NULL`,
     rollNo
   );
+
+  if (student) {
+    student.fee_breakdown = await getStudentFeeBreakdown(db, student);
+  }
+  return student;
 }
 
 export async function getStudents(filters: {
@@ -306,6 +456,7 @@ export async function getStudents(filters: {
         s.university_roll_no,
         s.course_code,
         s.current_duration_unit,
+        COALESCE(s.admission_duration_unit, 1) as admission_duration_unit,
         s.academic_year,
         s.class,
         s.section,
@@ -313,8 +464,6 @@ export async function getStudents(filters: {
         s.address,
         s.photo_path,
         s.qr_code,
-        s.overall_total_due,
-        s.overall_total_paid,
         s.created_at,
         s.updated_at,
         c.name AS course_name,
@@ -331,7 +480,27 @@ export async function getStudents(filters: {
             s.total_fees_paid,
             0
           )
-        ) AS pending_fees
+        ) AS pending_fees,
+        COALESCE(s.previous_fees_due, 0) AS previous_fees_due,
+        COALESCE(
+          (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit < s.current_duration_unit),
+          s.previous_fees_paid,
+          0
+        ) AS previous_fees_paid,
+        MAX(
+          0,
+          COALESCE(s.previous_fees_due, 0) - COALESCE(
+            (SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id AND duration_unit < s.current_duration_unit),
+            s.previous_fees_paid,
+            0
+          )
+        ) AS previous_pending_fees,
+        COALESCE(s.overall_total_due, 0) AS overall_total_due,
+        COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0) AS overall_total_paid,
+        MAX(
+          0,
+          COALESCE(s.overall_total_due, 0) - COALESCE((SELECT SUM(amount) FROM fee_payments WHERE student_id = s.id), s.overall_total_paid, 0)
+        ) AS overall_pending_fees
       FROM students s
       LEFT JOIN courses c ON s.course_code = c.code
       WHERE ${conditions.join(' AND ')}
@@ -339,9 +508,9 @@ export async function getStudents(filters: {
   `;
 
   if (feeStatus === 'pending' || feeStatus === 'left') {
-    sql += ` WHERE t.pending_fees > 0`;
+    sql += ` WHERE (t.pending_fees > 0 OR t.overall_pending_fees > 0 OR t.previous_pending_fees > 0)`;
   } else if (feeStatus === 'paid' || feeStatus === 'cleared') {
-    sql += ` WHERE t.pending_fees <= 0`;
+    sql += ` WHERE (t.overall_pending_fees <= 0 AND t.pending_fees <= 0)`;
   }
 
   sql += ` ORDER BY t.created_at DESC`;
@@ -355,90 +524,180 @@ export async function syncStudentFees(studentId: number) {
     id: number;
     course_code: string;
     academic_year: string;
+    admission_duration_unit: number;
     current_duration_unit: number;
     total_fees_due: number;
     total_fees_paid: number;
     overall_total_due: number;
     overall_total_paid: number;
   }>(
-    `SELECT id, course_code, academic_year, current_duration_unit, total_fees_due, total_fees_paid, overall_total_due, overall_total_paid
+    `SELECT id, course_code, academic_year, COALESCE(admission_duration_unit, 1) as admission_duration_unit, current_duration_unit, total_fees_due, total_fees_paid, overall_total_due, overall_total_paid
      FROM students WHERE id = ?`,
     studentId
   );
   if (!s) return null;
 
+  const admissionUnit = Number(s.admission_duration_unit || 1);
+  const currentUnit = Number(s.current_duration_unit || 1);
+
   // 1. Fee structure for current unit
   let fsCurrent = await db.get<{ total_fee: number }>(
     `SELECT total_fee FROM fee_structures 
      WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
-    s.course_code, s.academic_year, s.current_duration_unit
+    s.course_code, s.academic_year, currentUnit
   );
   if (!fsCurrent) {
     fsCurrent = await db.get<{ total_fee: number }>(
       `SELECT total_fee FROM fee_structures 
        WHERE course_code = ? AND duration_unit = ? 
        ORDER BY id DESC LIMIT 1`,
-      s.course_code, s.current_duration_unit
+      s.course_code, currentUnit
     );
   }
   const currentUnitDue = fsCurrent ? Number(fsCurrent.total_fee) : 0;
 
-  // 2. Payments for current unit and overall
-  const payments = await db.all<{ duration_unit: number; total: number }[]>(
+  // 2. Payments grouped by duration_unit
+  const payments = await db.all<Array<{ duration_unit: number; total: number }>>(
     `SELECT duration_unit, SUM(amount) as total 
      FROM fee_payments 
      WHERE student_id = ? 
      GROUP BY duration_unit`,
     studentId
   );
-  const currentUnitPayment = payments.find((p) => Number(p.duration_unit) === Number(s.current_duration_unit));
-  const currentUnitPaid = currentUnitPayment ? Number(currentUnitPayment.total) : 0;
-  const overallPaid = payments.reduce((sum, p) => sum + Number(p.total), 0);
-
-  // 3. Overall due calculation across all units 1 .. s.current_duration_unit
-  let overallDue = 0;
-  for (let u = 1; u <= s.current_duration_unit; u++) {
-    let fsU = await db.get<{ total_fee: number }>(
-      `SELECT total_fee FROM fee_structures 
-       WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
-      s.course_code, s.academic_year, u
-    );
-    if (!fsU) {
-      fsU = await db.get<{ total_fee: number }>(
-        `SELECT total_fee FROM fee_structures 
-         WHERE course_code = ? AND duration_unit = ? 
-         ORDER BY id DESC LIMIT 1`,
-        s.course_code, u
-      );
-    }
-    overallDue += fsU ? Number(fsU.total_fee) : 0;
+  const paymentMap = new Map<number, number>();
+  let overallPaid = 0;
+  for (const p of payments) {
+    const amt = Number(p.total) || 0;
+    paymentMap.set(Number(p.duration_unit), amt);
+    overallPaid += amt;
   }
+
+  const currentUnitPaid = paymentMap.get(currentUnit) || 0;
+  const currentUnitPending = Math.max(0, currentUnitDue - currentUnitPaid);
+
+  // 3. Overall due calculation across attended units (admissionUnit .. currentUnit)
+  let overallDue = 0;
+  let previousFeesDue = 0;
+  let previousFeesPaid = 0;
+
+  for (let u = admissionUnit; u <= currentUnit; u++) {
+    const isCurrent = (u === currentUnit);
+    let unitDue = 0;
+
+    if (isCurrent) {
+      unitDue = currentUnitDue;
+    } else {
+      const delta = currentUnit - u;
+      let pastYear = s.academic_year;
+      const m = s.academic_year.match(/^(\d{4})-(\d{2})/);
+      if (m && delta > 0) {
+        const startY = parseInt(m[1], 10) - delta;
+        const endY = parseInt(m[2], 10) - delta;
+        pastYear = `${startY}-${String(endY).padStart(2, '0')}`;
+      }
+
+      let fsU = await db.get<{ total_fee: number }>(
+        `SELECT total_fee FROM fee_structures 
+         WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
+        s.course_code, pastYear, u
+      );
+      if (!fsU) {
+        fsU = await db.get<{ total_fee: number }>(
+          `SELECT total_fee FROM fee_structures 
+           WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
+          s.course_code, s.academic_year, u
+        );
+      }
+      if (!fsU) {
+        fsU = await db.get<{ total_fee: number }>(
+          `SELECT total_fee FROM fee_structures 
+           WHERE course_code = ? AND duration_unit = ? 
+           ORDER BY id DESC LIMIT 1`,
+          s.course_code, u
+        );
+      }
+      unitDue = fsU ? Number(fsU.total_fee) : 0;
+    }
+
+    const unitPaid = paymentMap.get(u) || 0;
+
+    overallDue += unitDue;
+
+    if (!isCurrent) {
+      previousFeesDue += unitDue;
+      previousFeesPaid += unitPaid;
+    }
+  }
+
   if (overallDue < currentUnitDue) overallDue = currentUnitDue;
 
-  // 4. Pending fees for the current duration unit
-  const pendingFees = Math.max(0, currentUnitDue - currentUnitPaid);
+  const previousPendingFees = Math.max(0, previousFeesDue - previousFeesPaid);
+  const overallPendingFees = Math.max(0, overallDue - overallPaid);
 
-  await db.run(
-    `UPDATE students SET
-      total_fees_due = ?,
-      total_fees_paid = ?,
-      overall_total_due = ?,
-      overall_total_paid = ?,
-      updated_at = datetime('now')
-    WHERE id = ?`,
-    currentUnitDue,
-    currentUnitPaid,
-    overallDue,
-    overallPaid,
-    studentId
-  );
+  try {
+    await db.run(
+      `UPDATE students SET
+        total_fees_due = ?,
+        total_fees_paid = ?,
+        pending_fees = ?,
+        previous_fees_due = ?,
+        previous_fees_paid = ?,
+        previous_pending_fees = ?,
+        overall_total_due = ?,
+        overall_total_paid = ?,
+        overall_pending_fees = ?,
+        updated_at = datetime('now')
+      WHERE id = ?`,
+      currentUnitDue,
+      currentUnitPaid,
+      currentUnitPending,
+      previousFeesDue,
+      previousFeesPaid,
+      previousPendingFees,
+      overallDue,
+      overallPaid,
+      overallPendingFees,
+      studentId
+    );
+  } catch (err: any) {
+    if (err?.message?.includes('generated column')) {
+      await db.run(
+        `UPDATE students SET
+          total_fees_due = ?,
+          total_fees_paid = ?,
+          previous_fees_due = ?,
+          previous_fees_paid = ?,
+          previous_pending_fees = ?,
+          overall_total_due = ?,
+          overall_total_paid = ?,
+          overall_pending_fees = ?,
+          updated_at = datetime('now')
+        WHERE id = ?`,
+        currentUnitDue,
+        currentUnitPaid,
+        previousFeesDue,
+        previousFeesPaid,
+        previousPendingFees,
+        overallDue,
+        overallPaid,
+        overallPendingFees,
+        studentId
+      );
+    } else {
+      throw err;
+    }
+  }
 
   return {
     currentUnitDue,
     currentUnitPaid,
-    pendingFees,
+    pendingFees: currentUnitPending,
+    previousFeesDue,
+    previousFeesPaid,
+    previousPendingFees,
     overallDue,
-    overallPaid
+    overallPaid,
+    overallPendingFees
   };
 }
 
@@ -508,12 +767,61 @@ export async function getCourses() {
   return db.all<CourseRecord[]>(`SELECT code, name, duration_type, total_duration FROM courses ORDER BY name`);
 }
 
-export async function getAcademicYears() {
+export async function getAcademicYears(): Promise<string[]> {
   const db = getDB();
-  const years = await db.all<{ academic_year: string }[]>(
-    `SELECT DISTINCT academic_year FROM students WHERE academic_year IS NOT NULL ORDER BY academic_year DESC`
+
+  // 1. Get current academic year from system settings
+  const settingRow = await db.get<{ value: string }>(
+    `SELECT value FROM system_settings WHERE key = 'current_academic_year'`
   );
-  return years.map((row) => row.academic_year);
+  const currentAcademicYear = settingRow?.value?.trim() || '2026-27';
+
+  const yearSet = new Set<string>();
+
+  // 2. Generate past 5 sessions, current session, and next 2 upcoming sessions
+  // This fully accommodates 4-year (B.Tech) and 5-year curriculum cohorts
+  const m = currentAcademicYear.match(/^(\d{4})/);
+  if (m) {
+    const start = parseInt(m[1], 10);
+    for (let y = start - 5; y <= start + 2; y++) {
+      const next = String(y + 1).slice(-2);
+      yearSet.add(`${y}-${next}`);
+    }
+  } else {
+    yearSet.add(currentAcademicYear);
+  }
+
+  // 3. Append all existing distinct academic years from students table
+  const studentYears = await db.all<{ academic_year: string }[]>(
+    `SELECT DISTINCT academic_year FROM students WHERE academic_year IS NOT NULL AND academic_year != ''`
+  );
+  for (const row of studentYears) {
+    if (row.academic_year?.trim()) {
+      yearSet.add(row.academic_year.trim());
+    }
+  }
+
+  // 4. Append all existing distinct academic years from fee_structures table
+  const feeYears = await db.all<{ academic_year: string }[]>(
+    `SELECT DISTINCT academic_year FROM fee_structures WHERE academic_year IS NOT NULL AND academic_year != ''`
+  );
+  for (const row of feeYears) {
+    if (row.academic_year?.trim()) {
+      yearSet.add(row.academic_year.trim());
+    }
+  }
+
+  // 5. Sort descending (newest session first)
+  const sorted = Array.from(yearSet).sort((a, b) => {
+    const matchA = a.match(/^(\d{4})/);
+    const matchB = b.match(/^(\d{4})/);
+    if (matchA && matchB) {
+      return parseInt(matchB[1], 10) - parseInt(matchA[1], 10);
+    }
+    return b.localeCompare(a);
+  });
+
+  return sorted;
 }
 
 export async function getSystemSettings() {

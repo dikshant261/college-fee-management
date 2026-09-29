@@ -35,6 +35,19 @@ export async function createFeeStructure(input: {
   other_fee: number;
 }) {
   const db = getDB();
+  // Check if a fee structure already exists for this course, session, and year
+  const existing = await db.get<FeeStructureRecord>(
+    `SELECT id FROM fee_structures WHERE course_code = ? AND academic_year = ? AND duration_unit = ?`,
+    input.course_code,
+    input.academic_year,
+    input.duration_unit
+  );
+
+  if (existing) {
+    // Safely update existing record instead of throwing SQLite constraint error
+    return updateFeeStructure(existing.id, input);
+  }
+
   const result = await db.run(
     `INSERT INTO fee_structures (course_code, academic_year, duration_unit, tuition_fee, exam_fee, library_fee, other_fee)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -71,7 +84,32 @@ export async function updateFeeStructure(id: number, input: Partial<{
     library_fee: input.library_fee ?? existing.library_fee,
     other_fee: input.other_fee ?? existing.other_fee
   };
+
   const db = getDB();
+  // Check if updating this record conflicts with another existing record
+  const conflict = await db.get<FeeStructureRecord>(
+    `SELECT id FROM fee_structures WHERE course_code = ? AND academic_year = ? AND duration_unit = ? AND id != ?`,
+    updated.course_code,
+    updated.academic_year,
+    updated.duration_unit,
+    id
+  );
+
+  if (conflict) {
+    // Update the existing conflicting record with new fee amounts and remove the redundant record
+    await db.run(
+      `UPDATE fee_structures SET tuition_fee = ?, exam_fee = ?, library_fee = ?, other_fee = ?, updated_at = datetime('now') WHERE id = ?`,
+      updated.tuition_fee,
+      updated.exam_fee,
+      updated.library_fee,
+      updated.other_fee,
+      conflict.id
+    );
+    await db.run(`DELETE FROM fee_structures WHERE id = ?`, id);
+    await syncAllStudentsFees(updated.course_code);
+    return getFeeStructureById(conflict.id);
+  }
+
   await db.run(
     `UPDATE fee_structures SET course_code = ?, academic_year = ?, duration_unit = ?, tuition_fee = ?, exam_fee = ?, library_fee = ?, other_fee = ?, updated_at = datetime('now') WHERE id = ?`,
     updated.course_code,

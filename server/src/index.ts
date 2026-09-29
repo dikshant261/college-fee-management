@@ -5,11 +5,11 @@ import path from 'path';
 import fs from 'fs';
 import morgan from 'morgan';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || '127.0.0.1';
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -109,8 +109,12 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: any) => 
       console.log('\n======================================================');
       console.log('  College Fee Management Server is LIVE');
       console.log(`  > Local Machine:  http://localhost:${PORT}`);
-      console.log(`  > Local Wi-Fi:    http://${primaryIp}:${PORT}`);
-      console.log(`  > Client Web App: http://${primaryIp}:${clientPort}`);
+      if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
+        console.log(`  > Local Wi-Fi:    http://${primaryIp}:${PORT}`);
+        console.log(`  > Client Web App: http://${primaryIp}:${clientPort}`);
+      } else {
+        console.log('  > Network:        Bound strictly to localhost (Wi-Fi access disabled)');
+      }
       console.log('======================================================\n');
     });
   } catch (err) {
