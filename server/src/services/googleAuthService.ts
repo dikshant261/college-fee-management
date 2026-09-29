@@ -17,7 +17,8 @@ export function getOAuth2Client() {
   dotenv.config({ override: true });
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim() || 'http://localhost:5000/api/google/callback';
+  const port = process.env.PORT || '5000';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim() || `http://localhost:${port}/api/google/callback`;
 
   if (!clientId || !clientSecret) {
     throw new Error('GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing from environment variables.');

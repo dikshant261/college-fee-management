@@ -44,12 +44,13 @@ router.get('/callback', async (req, res) => {
   const code = req.query.code as string;
   const error = req.query.error as string;
 
+  const port = process.env.PORT || 5000;
   const isProduction = process.env.NODE_ENV === 'production' || isStaticClientAvailable();
-  const reqHost = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+  const reqHost = req.get('host') || `localhost:${port}`;
   const currentOrigin = `${req.protocol}://${reqHost}`;
 
-  // In production / installer mode (where Express serves the frontend on port 5000),
-  // always redirect back to the active server origin.
+  // In production / installer mode (where Express serves the frontend on port 5000 / PORT),
+  // always redirect back to the active server origin on port 5000.
   // In development, respect FRONTEND_URL if set, otherwise fallback to currentOrigin.
   const clientOrigin = isProduction
     ? currentOrigin

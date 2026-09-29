@@ -6,7 +6,7 @@ const base = import.meta.env.VITE_API_BASE || '';
 function makeBaseURL() {
   if (base) return base;
   const host = window.location.hostname;
-  const port = import.meta.env.VITE_API_PORT || '5000';
+  const port = window.location.port || import.meta.env.VITE_API_PORT || '5000';
   return `${window.location.protocol}//${host}:${port}`;
 }
 

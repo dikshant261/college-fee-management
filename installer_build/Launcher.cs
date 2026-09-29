@@ -83,6 +83,26 @@ namespace CollegeFeeManagement
                     psi.EnvironmentVariables["UPLOADS_DIR"] = @"C:\CollegeData\uploads";
                 }
 
+                string frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL");
+                if (string.IsNullOrEmpty(frontendUrl))
+                {
+                    psi.EnvironmentVariables["FRONTEND_URL"] = "http://localhost:" + port;
+                }
+                else
+                {
+                    psi.EnvironmentVariables["FRONTEND_URL"] = frontendUrl;
+                }
+
+                string redirectUri = Environment.GetEnvironmentVariable("GOOGLE_REDIRECT_URI");
+                if (string.IsNullOrEmpty(redirectUri))
+                {
+                    psi.EnvironmentVariables["GOOGLE_REDIRECT_URI"] = "http://localhost:" + port + "/api/google/callback";
+                }
+                else
+                {
+                    psi.EnvironmentVariables["GOOGLE_REDIRECT_URI"] = redirectUri;
+                }
+
                 Process.Start(psi);
             }
             catch (Exception ex)
