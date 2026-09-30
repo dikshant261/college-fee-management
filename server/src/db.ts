@@ -187,6 +187,128 @@ export async function initDB() {
     );
   `);
 
+  // =========================================================================
+  // MONEY OUT / EXPENSE MANAGEMENT & PAYROLL SUITE
+  // =========================================================================
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      expense_date TEXT NOT NULL,
+      category_id INTEGER,
+      category_name TEXT NOT NULL,
+      amount REAL NOT NULL CHECK(amount > 0),
+      paid_to TEXT NOT NULL,
+      vendor TEXT,
+      payment_method TEXT CHECK(payment_method IN ('cash', 'upi', 'bank_transfer', 'card', 'cheque', 'other')),
+      status TEXT NOT NULL CHECK(status IN ('paid', 'pending')),
+      invoice_no TEXT,
+      reference_no TEXT,
+      description TEXT,
+      notes TEXT,
+      attachment_path TEXT,
+      academic_year TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY(category_id) REFERENCES expense_categories(id) ON DELETE SET NULL,
+      FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_employees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      emp_code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      department TEXT NOT NULL,
+      designation TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      basic_salary REAL NOT NULL DEFAULT 0,
+      bank_name TEXT,
+      account_no TEXT,
+      ifsc_code TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS payroll_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL,
+      academic_year TEXT NOT NULL,
+      month TEXT NOT NULL,
+      year INTEGER NOT NULL,
+      basic_salary REAL NOT NULL DEFAULT 0,
+      allowances REAL NOT NULL DEFAULT 0,
+      deductions REAL NOT NULL DEFAULT 0,
+      net_salary REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL CHECK(status IN ('pending', 'paid')),
+      payment_method TEXT CHECK(payment_method IN ('cash', 'upi', 'bank_transfer', 'card', 'cheque', 'other')),
+      payment_date TEXT,
+      reference_no TEXT,
+      notes TEXT,
+      paid_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY(employee_id) REFERENCES staff_employees(id) ON DELETE CASCADE,
+      FOREIGN KEY(paid_by) REFERENCES users(id) ON DELETE SET NULL,
+      UNIQUE(employee_id, academic_year, month, year)
+    );
+
+    CREATE TABLE IF NOT EXISTS money_out_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_date TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('EXPENSE', 'SALARY', 'OTHER')),
+      source TEXT NOT NULL CHECK(source IN ('EXPENSE_MODULE', 'PAYROLL_MODULE')),
+      source_id INTEGER NOT NULL,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL CHECK(amount > 0),
+      paid_to TEXT NOT NULL,
+      payment_method TEXT NOT NULL,
+      reference_no TEXT,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'PAID',
+      academic_year TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_money_out_source ON money_out_transactions(source, source_id);
+    CREATE INDEX IF NOT EXISTS idx_money_out_date ON money_out_transactions(transaction_date);
+    CREATE INDEX IF NOT EXISTS idx_money_out_ay ON money_out_transactions(academic_year);
+
+    CREATE TRIGGER IF NOT EXISTS expenses_updated_at
+    AFTER UPDATE ON expenses
+    FOR EACH ROW
+    BEGIN
+      UPDATE expenses SET updated_at = datetime('now') WHERE id = OLD.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS staff_employees_updated_at
+    AFTER UPDATE ON staff_employees
+    FOR EACH ROW
+    BEGIN
+      UPDATE staff_employees SET updated_at = datetime('now') WHERE id = OLD.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS payroll_records_updated_at
+    AFTER UPDATE ON payroll_records
+    FOR EACH ROW
+    BEGIN
+      UPDATE payroll_records SET updated_at = datetime('now') WHERE id = OLD.id;
+    END;
+  `);
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS system_settings (
       key TEXT PRIMARY KEY,
@@ -558,6 +680,44 @@ export async function initDB() {
     SET photo_path = '/uploads/students/' || substr(photo_path, instr(photo_path, 'students/') + 9)
     WHERE photo_path LIKE '%students/%' AND photo_path NOT LIKE '/uploads/students/%';
   `);
+
+  // Seed default expense categories
+  const defaultCategories = [
+    'Electricity',
+    'Internet',
+    'Rent',
+    'Maintenance',
+    'Repairs',
+    'Stationery',
+    'Transportation',
+    'Cleaning',
+    'Security',
+    'Equipment',
+    'Events',
+    'Software/Subscriptions',
+    'Office Supplies',
+    'Miscellaneous'
+  ];
+
+  for (const cat of defaultCategories) {
+    await db.run(
+      `INSERT OR IGNORE INTO expense_categories (name, description, is_default, is_active) VALUES (?, ?, 1, 1)`,
+      cat,
+      `${cat} expenditure`
+    );
+  }
+
+  // Seed initial staff employees if table is empty
+  const staffCount = await db.get<{ count: number }>(`SELECT COUNT(*) as count FROM staff_employees`);
+  if ((staffCount?.count ?? 0) === 0) {
+    await db.exec(`
+      INSERT INTO staff_employees (emp_code, name, department, designation, basic_salary, bank_name, account_no, ifsc_code) VALUES
+        ('EMP101', 'Dr. Ramesh Sharma', 'Computer Science', 'Senior Lecturer', 45000, 'State Bank of India', '30291823901', 'SBIN0001234'),
+        ('EMP102', 'Pooja Verma', 'Administration', 'Office Manager', 32000, 'HDFC Bank', '50100234918', 'HDFC0000456'),
+        ('EMP103', 'Rajesh Kumar', 'Maintenance', 'Supervisor', 22000, 'Punjab National Bank', '10920019283', 'PUNB0109200'),
+        ('EMP104', 'Anita Deshmukh', 'Commerce', 'Assistant Professor', 40000, 'ICICI Bank', '00120193821', 'ICIC0000012');
+    `);
+  }
 
   return db;
 }

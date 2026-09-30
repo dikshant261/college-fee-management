@@ -29,10 +29,12 @@ export function ensureStorageDirs() {
   const uploadsDir = getUploadsDir();
   const studentsDir = path.join(uploadsDir, 'students');
   const qrcodesDir = path.join(uploadsDir, 'qrcodes');
+  const expensesDir = path.join(uploadsDir, 'expenses');
 
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   if (!fs.existsSync(studentsDir)) fs.mkdirSync(studentsDir, { recursive: true });
   if (!fs.existsSync(qrcodesDir)) fs.mkdirSync(qrcodesDir, { recursive: true });
+  if (!fs.existsSync(expensesDir)) fs.mkdirSync(expensesDir, { recursive: true });
 
-  return { dbPath, uploadsDir, studentsDir, qrcodesDir };
+  return { dbPath, uploadsDir, studentsDir, qrcodesDir, expensesDir };
 }

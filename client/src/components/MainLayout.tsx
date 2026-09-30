@@ -11,6 +11,13 @@ const navItems = [
   { label: 'Fees', path: '/fees' }
 ];
 
+const financeItems = [
+  { label: 'Money Out Dashboard', path: '/finance' },
+  { label: 'Expenses', path: '/money-out/expenses' },
+  { label: 'Salary & Payroll', path: '/money-out/payroll' },
+  { label: 'Transactions', path: '/money-out/transactions' }
+];
+
 const adminItems = [
   { label: 'Users', path: '/users' },
   { label: 'Courses', path: '/courses' },
@@ -104,6 +111,31 @@ export default function MainLayout() {
           {item.label}
         </NavLink>
       ))}
+
+      {/* Finance / Money Out Section */}
+      <div className="mt-3.5 rounded-md bg-slate-50 border border-slate-200 p-2">
+        <div className="px-2 py-1 text-2xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+          <span>Finance / Outflow</span>
+          <span className="text-3xs font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">Money Out</span>
+        </div>
+        <div className="mt-1 space-y-0.5">
+          {financeItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={onItemClick}
+              className={({ isActive }) =>
+                `flex items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition ${isActive
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      </div>
 
       {user?.role === 'admin' && (
         <div className="mt-4 rounded-md bg-slate-50 border border-slate-200 p-2">

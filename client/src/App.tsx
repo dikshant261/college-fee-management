@@ -11,6 +11,10 @@ import UserManagementPage from './pages/UserManagementPage';
 import CourseManagementPage from './pages/CourseManagementPage';
 import FeeManagementPage from './pages/FeeManagementPage';
 import FeeStructuresPage from './pages/FeeStructuresPage';
+import FinanceDashboardPage from './pages/FinanceDashboardPage';
+import ExpensesPage from './pages/ExpensesPage';
+import PayrollPage from './pages/PayrollPage';
+import MoneyOutTransactionsPage from './pages/MoneyOutTransactionsPage';
 import GoogleDriveSyncPage from './pages/GoogleDriveSyncPage';
 import NotFoundPage from './pages/NotFoundPage';
 import MainLayout from './components/MainLayout';
@@ -54,6 +58,11 @@ export default function App() {
             <Route path="student/:identifier" element={<StudentDetailPage />} />
             <Route path="students/roll/:identifier" element={<StudentDetailPage />} />
             <Route path="fees" element={<FeeManagementPage />} />
+            <Route path="finance" element={<FinanceDashboardPage />} />
+            <Route path="money-out/dashboard" element={<Navigate to="/finance" replace />} />
+            <Route path="money-out/expenses" element={<ExpensesPage />} />
+            <Route path="money-out/payroll" element={<PayrollPage />} />
+            <Route path="money-out/transactions" element={<MoneyOutTransactionsPage />} />
             <Route path="fee-structures" element={<RequireAdmin><FeeStructuresPage /></RequireAdmin>} />
             <Route path="users" element={<RequireAdmin><UserManagementPage /></RequireAdmin>} />
             <Route path="courses" element={<RequireAdmin><CourseManagementPage /></RequireAdmin>} />
